@@ -1,39 +1,17 @@
 {
-  "name": "realcommerce",
-  "version": "0.1.0",
+  "name": "realcommerce-workspace",
   "private": true,
-  "dependencies": {
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^13.5.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
-  },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "install:all": "npm install --prefix client && npm install --prefix server",
+    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client start\"",
+    "client": "npm --prefix client start",
+    "server": "npm --prefix server run dev",
+    "server:start": "npm --prefix server run start",
+    "build": "npm --prefix client run build",
+    "test": "npm --prefix client run test:ci",
+    "db:init": "npm --prefix server run db:init"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

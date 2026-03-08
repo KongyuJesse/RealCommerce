@@ -1,70 +1,58 @@
-# Getting Started with Create React App
+# RealCommerce
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+RealCommerce is now structured as a real split application:
 
-## Available Scripts
+- `client/`: standalone React frontend
+- `server/`: standalone Express and PostgreSQL backend
+- root package: orchestration scripts for running both together
 
-In the project directory, you can run:
+The platform includes:
 
-### `npm start`
+- a PostgreSQL schema for roles, users, customers, tiers, products, categories, attributes, currencies, warehouses, inventory, orders, payments, and shipments
+- an Express API with homepage, catalog, and health endpoints
+- a production-style homepage that reads live API data and falls back gracefully when the API is unavailable
+- backend-local environment management in `server/.env`
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## API endpoints
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- `GET /api/health`
+- `GET /api/homepage`
+- `GET /api/categories`
+- `GET /api/products`
 
-### `npm test`
+## Local setup
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Install root orchestration dependencies with `npm install`.
+2. Install the frontend dependencies with `npm install --prefix client`.
+3. Install the backend dependencies with `npm install --prefix server`.
+4. Review `server/.env` or copy `server/.env.example` if you need different PostgreSQL settings.
+5. Initialize the database with `npm run db:init`.
+6. Start both apps with `npm run dev`.
 
-### `npm run build`
+Frontend runs on `http://localhost:3000`.
+Backend runs on `http://localhost:4000`.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Scripts
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- Root:
+- `npm run dev`: run frontend and backend together
+- `npm run client`: run only the frontend package
+- `npm run server`: run only the backend package in dev mode
+- `npm run server:start`: run the backend package in production mode
+- `npm run build`: build the frontend package
+- `npm run test`: run the frontend tests once
+- `npm run db:init`: create and seed the PostgreSQL database
+- Client:
+- `npm start`
+- `npm run build`
+- `npm run test:ci`
+- Server:
+- `npm run dev`
+- `npm start`
+- `npm run db:init`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Current status
 
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- The `realcommerce` PostgreSQL database has been created locally and seeded successfully.
+- The backend package serves `/api/health` and `/api/homepage` successfully.
+- The client package builds and tests successfully on its own.
