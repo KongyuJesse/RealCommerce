@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS inventory CASCADE;
 DROP TABLE IF EXISTS warehouses CASCADE;
+DROP TABLE IF EXISTS product_images CASCADE;
 DROP TABLE IF EXISTS product_attribute_values CASCADE;
 DROP TABLE IF EXISTS product_attributes CASCADE;
 DROP TABLE IF EXISTS products CASCADE;
@@ -74,6 +75,28 @@ CREATE TABLE products (
   is_featured BOOLEAN NOT NULL DEFAULT FALSE,
   launch_month VARCHAR(30),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE product_images (
+  id SERIAL PRIMARY KEY,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  storage_provider VARCHAR(20) NOT NULL DEFAULT 'gcs'
+    CHECK (storage_provider IN ('gcs', 'external', 'seed')),
+  bucket_name VARCHAR(120),
+  object_path VARCHAR(255),
+  public_url TEXT,
+  source_url TEXT,
+  mime_type VARCHAR(120),
+  alt_text VARCHAR(255),
+  width INTEGER,
+  height INTEGER,
+  file_size_bytes BIGINT,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  asset_status VARCHAR(20) NOT NULL DEFAULT 'READY'
+    CHECK (asset_status IN ('PENDING', 'READY', 'FAILED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE product_attributes (
@@ -190,6 +213,8 @@ CREATE TABLE exchange_rates (
 
 CREATE INDEX idx_users_role_id ON users(role_id);
 CREATE INDEX idx_products_category_id ON products(category_id);
+CREATE INDEX idx_product_images_product_id
+  ON product_images(product_id, is_primary DESC, display_order ASC);
 CREATE INDEX idx_inventory_product_id ON inventory(product_id);
 CREATE INDEX idx_inventory_warehouse_id ON inventory(warehouse_id);
 CREATE INDEX idx_orders_customer_id ON orders(customer_id);

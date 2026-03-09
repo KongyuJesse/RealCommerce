@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: realcommerce-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PREFIX
+        value: /api
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: CLIENT_ORIGIN_REGEX
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSL
+        value: "true"
+      - key: MEDIA_STORAGE_PROVIDER
+        value: gcs
+      - key: GCS_PROJECT_ID
+        sync: false
+      - key: GCS_BUCKET_NAME
+        sync: false
+      - key: GCS_KEY_FILENAME
+        sync: false
+      - key: GCS_CREDENTIALS_JSON
+        sync: false
+      - key: GCS_CREDENTIALS_BASE64
+        sync: false
+      - key: GCS_UPLOAD_URL_EXPIRES_SECONDS
+        value: "900"
+      - key: GCS_PUBLIC_BASE_URL
+        sync: false

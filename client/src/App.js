@@ -1,70 +1,36 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import fallbackHomeData from './fallbackHomeData';
-
-function formatMoney(value, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatDate(value) {
-  if (!value) {
-    return 'Not available';
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(value));
-}
-
-function formatMetric(metric) {
-  if (metric.kind === 'currency') {
-    return formatMoney(metric.value, metric.currency);
-  }
-
-  return new Intl.NumberFormat('en-US').format(metric.value);
-}
+import MarketplaceCard from './components/MarketplaceCard';
+import {
+  CaretDownIcon,
+  CartIcon,
+  FlagUsaIcon,
+  MapPinIcon,
+  MenuIcon,
+  SearchIcon,
+} from './components/MarketplaceIcons';
+import marketplaceHomeData from './marketplaceHomeData';
+import { fetchHomepage } from './lib/api';
+import { adaptHomepageToMarketplaceData } from './lib/homepageAdapter';
 
 function App() {
-  const [viewModel, setViewModel] = useState({
-    status: 'loading',
-    error: '',
-    data: fallbackHomeData,
-  });
+  const [pageData, setPageData] = useState(marketplaceHomeData);
+  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  const [searchValue, setSearchValue] = useState('');
+  const activeHeroSlide =
+    pageData.heroSlides[activeHeroIndex] || pageData.heroSlides[0];
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadHomepage() {
       try {
-        const response = await fetch('/api/homepage', {
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Homepage request failed with ${response.status}`);
-        }
-
-        const payload = await response.json();
-        setViewModel({
-          status: 'ready',
-          error: '',
-          data: payload.data,
-        });
+        const homepageData = await fetchHomepage(controller.signal);
+        setPageData(adaptHomepageToMarketplaceData(homepageData, marketplaceHomeData));
       } catch (error) {
-        if (error.name === 'AbortError') {
-          return;
+        if (error.name !== 'AbortError') {
+          setPageData(marketplaceHomeData);
         }
-
-        setViewModel({
-          status: 'offline',
-          error: 'Live API unavailable. Showing the seeded storefront preview.',
-          data: fallbackHomeData,
-        });
       }
     }
 
@@ -73,291 +39,192 @@ function App() {
     return () => controller.abort();
   }, []);
 
-  const { data, error, status } = viewModel;
-  const primaryWarehouse = data.operations.warehouses[0];
-  const baseCurrency =
-    data.operations.currencies.find((entry) => entry.isBase) ||
-    data.operations.currencies[0];
-  const activePipelineCount = data.operations.pipeline
-    .filter((stage) => ['PROCESSING', 'PAID', 'SHIPPED'].includes(stage.status))
-    .reduce((total, stage) => total + stage.count, 0);
+  useEffect(() => {
+    if (!pageData.heroSlides.length) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setActiveHeroIndex((current) => (current + 1) % pageData.heroSlides.length);
+    }, 5200);
+
+    return () => window.clearInterval(intervalId);
+  }, [pageData.heroSlides.length]);
+
+  useEffect(() => {
+    if (!pageData.heroSlides.length) {
+      setActiveHeroIndex(0);
+      return;
+    }
+
+    setActiveHeroIndex((current) => current % pageData.heroSlides.length);
+  }, [pageData.heroSlides.length]);
 
   return (
-    <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-      <main className="page">
-        <header className="topbar">
-          <div className="brand-lockup">
-            <span className="brand-mark">RC</span>
-            <div>
-              <p className="brand-name">RealCommerce</p>
-              <span className="brand-meta">PostgreSQL, Express, and React</span>
+    <div className="amazon-shell">
+      <header>
+        <div className="navbar-top">
+          <div className="nav-left">
+            <a className="logo" href="#shop" aria-label="RealCommerce home">
+              <span className="logo-text">realcommerce</span>
+              <span className="logo-dot">.</span>
+              <span>com</span>
+            </a>
+
+            <div className="deliver-to">
+              <MapPinIcon size={18} />
+              <div className="deliver-text">
+                <span className="deliver-line1">Deliver to</span>
+                <span className="deliver-line2">{pageData.location}</span>
+              </div>
             </div>
           </div>
-          <nav className="topnav" aria-label="Primary">
-            <a href="#categories">Categories</a>
-            <a href="#featured-products">Products</a>
-            <a href="#operations">Operations</a>
-          </nav>
-        </header>
 
-        <section className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">{data.hero.eyebrow}</p>
-            <h1>{data.hero.title}</h1>
-            <p className="hero-text">{data.hero.subtitle}</p>
-            <div className="hero-actions">
-              <a className="button button-primary" href={data.hero.primaryCta.href}>
-                {data.hero.primaryCta.label}
-              </a>
-              <a
-                className="button button-secondary"
-                href={data.hero.secondaryCta.href}
-              >
-                {data.hero.secondaryCta.label}
-              </a>
+          <label className="nav-search" aria-label="Search RealCommerce">
+            <span className="search-category">All</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search RealCommerce"
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+            />
+            <button className="search-btn" type="button" aria-label="Search">
+              <SearchIcon size={19} />
+            </button>
+          </label>
+
+          <div className="nav-right">
+            <div className="lang-flag">
+              <FlagUsaIcon size={18} />
+              <span>{pageData.language}</span>
+              <CaretDownIcon size={12} />
             </div>
-            {error ? <p className="hero-alert">{error}</p> : null}
+
+            <div className="account">
+              <span>Hello, sign in</span>
+              <span className="bold">Account & Lists</span>
+            </div>
+
+            <div className="returns">
+              <span>Returns</span>
+              <span className="bold">& Orders</span>
+            </div>
+
+            <div className="cart">
+              <CartIcon size={24} />
+              <span className="bold">Cart</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="nav-secondary">
+          <div className="nav-all">
+            <MenuIcon size={16} />
+            <span>All</span>
           </div>
 
-          <aside className="hero-panel">
-            <div className="panel-kicker">
-              <span className={`status-pill status-${status}`}>{status}</span>
-              <span>Updated {formatDate(data.updatedAt)}</span>
+          <div className="nav-options">
+            {pageData.secondaryLinks.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+
+          <div className="nav-deals">{pageData.spotlightLabel}</div>
+        </div>
+      </header>
+
+      <main className="main-content" id="shop">
+        <section className="hero-section" aria-label="Featured promotions">
+          {pageData.heroSlides.map((slide, index) => (
+            <div
+              className={`hero-slide ${index === activeHeroIndex ? 'is-active' : ''}`}
+              key={slide.id}
+              style={{ backgroundImage: `url(${slide.imageUrl})` }}
+              role="img"
+              aria-label={slide.alt}
+            />
+          ))}
+
+          <div className="hero-overlay">
+            <div className="hero-copy">
+              <span className="hero-copy-eyebrow">{activeHeroSlide.eyebrow}</span>
+              <h1>{activeHeroSlide.title}</h1>
+              <p>{activeHeroSlide.subtitle}</p>
             </div>
-            <h2>{activePipelineCount} orders actively moving through fulfilment</h2>
-            <p>
-              The homepage reads the catalog, inventory, order flow, and exchange
-              rate layers from the backend API in one view.
-            </p>
-            <div className="hero-facts">
-              <article>
-                <span>Primary hub</span>
-                <strong>
-                  {primaryWarehouse
-                    ? `${primaryWarehouse.city}, ${primaryWarehouse.country}`
-                    : 'Pending setup'}
-                </strong>
-              </article>
-              <article>
-                <span>Base currency</span>
-                <strong>{baseCurrency ? baseCurrency.code : 'USD'}</strong>
-              </article>
-              <article>
-                <span>Featured lanes</span>
-                <strong>{data.featuredCategories.length}</strong>
-              </article>
-              <article>
-                <span>Operational view</span>
-                <strong>Catalog to shipment</strong>
-              </article>
+
+            <div className="hero-dots" role="tablist" aria-label="Hero slides">
+              {pageData.heroSlides.map((slide, index) => (
+                <button
+                  key={slide.id}
+                  type="button"
+                  className={index === activeHeroIndex ? 'is-active' : ''}
+                  onClick={() => setActiveHeroIndex(index)}
+                  aria-label={`Show hero slide ${index + 1}`}
+                  aria-pressed={index === activeHeroIndex}
+                />
+              ))}
             </div>
-          </aside>
+          </div>
         </section>
 
-        <section className="metrics-grid" aria-label="Platform metrics">
-          {data.metrics.map((metric) => (
-            <article className="metric-card" key={metric.label}>
-              <span>{metric.label}</span>
-              <strong>{formatMetric(metric)}</strong>
-              <p>{metric.detail}</p>
-            </article>
+        <section className="card-grid card-grid-floating" aria-label="Featured shopping sections">
+          {pageData.featuredCards.map((card) => (
+            <MarketplaceCard card={card} key={card.id} />
           ))}
         </section>
 
-        <section className="highlights-strip" aria-label="Platform highlights">
-          {data.highlights.map((highlight) => (
-            <article className="highlight-card" key={highlight.title}>
-              <h2>{highlight.title}</h2>
-              <p>{highlight.text}</p>
-            </article>
+        <section className="card-grid card-grid-secondary" aria-label="More shopping sections">
+          {pageData.secondaryCards.map((card) => (
+            <MarketplaceCard card={card} key={card.id} />
           ))}
         </section>
 
-        <section className="section-block" id="categories">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Merchandising lanes</p>
-              <h2>Featured categories</h2>
-            </div>
-            <p>
-              Structured categories power clean product discovery and let the
-              backend aggregate catalog health without extra transformation.
-            </p>
-          </div>
-          <div className="category-grid">
-            {data.featuredCategories.map((category) => (
-              <article className="category-card" key={category.slug}>
-                <span className="category-count">
-                  {category.productCount} active products
-                </span>
-                <h3>{category.name}</h3>
-                <p>{category.description}</p>
-                <small>{category.heroCopy}</small>
-              </article>
-            ))}
-          </div>
+        <section className="signin-strip">
+          <p>See personalized recommendations</p>
+          <button className="signin-btn" type="button">
+            Sign in
+          </button>
+          <small>
+            New customer? <a href="#shop">Start here.</a>
+          </small>
         </section>
-
-        <section className="section-block" id="featured-products">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Assortment spotlight</p>
-              <h2>Featured products</h2>
-            </div>
-            <p>
-              Inventory, category context, and attribute metadata are returned from
-              the API so this page stays close to the data model.
-            </p>
-          </div>
-          <div className="product-grid">
-            {data.featuredProducts.map((product) => (
-              <article className="product-card" key={product.sku}>
-                <div className="product-header">
-                  <span className="product-category">{product.category}</span>
-                  <span className="product-status">{product.status}</span>
-                </div>
-                <h3>{product.name}</h3>
-                <p>{product.description}</p>
-                <div className="product-meta">
-                  <strong>{formatMoney(product.price, product.currency)}</strong>
-                  <span>{product.inventoryUnits} units in stock</span>
-                </div>
-                <div className="chip-row">
-                  {product.attributes.map((attribute) => (
-                    <span className="chip" key={`${product.sku}-${attribute.label}`}>
-                      {attribute.label}: {attribute.value}
-                    </span>
-                  ))}
-                </div>
-                <footer className="product-footer">
-                  <span>{product.sku}</span>
-                  <span>{product.launchMonth}</span>
-                </footer>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="section-block operations-block" id="operations">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Operations board</p>
-              <h2>Order, warehouse, and currency signals</h2>
-            </div>
-            <p>
-              These panels are assembled from normalized PostgreSQL tables rather
-              than hand-authored content, which keeps the homepage aligned with the
-              backend state.
-            </p>
-          </div>
-
-          <div className="operations-grid">
-            <article className="operations-card">
-              <div className="card-heading">
-                <h3>Order pipeline</h3>
-                <span>{data.operations.pipeline.length} stages</span>
-              </div>
-              <div className="pipeline-list">
-                {data.operations.pipeline.map((stage) => (
-                  <div className="pipeline-item" key={stage.status}>
-                    <span>{stage.status}</span>
-                    <strong>{stage.count}</strong>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="operations-card">
-              <div className="card-heading">
-                <h3>Recent orders</h3>
-                <span>{data.operations.recentOrders.length} records</span>
-              </div>
-              <div className="order-list">
-                {data.operations.recentOrders.map((order) => (
-                  <div className="order-row" key={order.orderNumber}>
-                    <div>
-                      <strong>{order.orderNumber}</strong>
-                      <p>{order.customerName}</p>
-                    </div>
-                    <div>
-                      <strong>{formatMoney(order.total, order.currency)}</strong>
-                      <p>{formatDate(order.placedAt)}</p>
-                    </div>
-                    <div>
-                      <span>{order.status}</span>
-                      <p>
-                        {order.paymentStatus} / {order.shipmentStatus}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="operations-card">
-              <div className="card-heading">
-                <h3>Warehouse utilization</h3>
-                <span>{data.operations.warehouses.length} hubs</span>
-              </div>
-              <div className="warehouse-list">
-                {data.operations.warehouses.map((warehouse) => (
-                  <div className="warehouse-row" key={warehouse.code}>
-                    <div>
-                      <strong>{warehouse.name}</strong>
-                      <p>
-                        {warehouse.city}, {warehouse.country}
-                      </p>
-                    </div>
-                    <div>
-                      <strong>{warehouse.utilization}%</strong>
-                      <p>{warehouse.quantityOnHand} units available</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <article className="operations-card">
-              <div className="card-heading">
-                <h3>Currency watch</h3>
-                <span>{baseCurrency ? `${baseCurrency.code} base` : 'FX feed'}</span>
-              </div>
-              <div className="currency-list">
-                {data.operations.currencies.map((currency) => (
-                  <div className="currency-row" key={currency.code}>
-                    <div>
-                      <strong>{currency.code}</strong>
-                      <p>{currency.name}</p>
-                    </div>
-                    <div>
-                      <strong>
-                        {currency.isBase ? '1.00' : currency.rate.toFixed(2)}
-                      </strong>
-                      <p>{currency.isBase ? 'Base currency' : 'Latest stored rate'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <footer className="footer-banner">
-          <div>
-            <p className="eyebrow">Built for growth</p>
-            <h2>
-              The storefront, API, and PostgreSQL schema now share one coherent
-              foundation.
-            </h2>
-          </div>
-          <p>
-            Run the database bootstrap, start the API, and the homepage will swap
-            from seeded preview data to live records automatically.
-          </p>
-        </footer>
       </main>
+
+      <button
+        className="back-top"
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
+        Back to top
+      </button>
+
+      <footer>
+        <div className="footer-links">
+          {pageData.footerColumns.map((column) => (
+            <div className="footer-col" key={column.title}>
+              <p>{column.title}</p>
+              <ul>
+                {column.links.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div className="footer-divider" />
+
+        <div className="footer-bottom">
+          <div className="footer-logo">realcommerce</div>
+          <div className="footer-copyright">
+            <span>(c) 2026 RealCommerce, Inc. or its affiliates</span>
+            <span>Conditions of Use</span>
+            <span>Privacy Notice</span>
+            <span>Your Ads Privacy Choices</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

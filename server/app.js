@@ -7,6 +7,23 @@ const { config } = require('./config');
 const healthRoutes = require('./routes/health');
 const catalogRoutes = require('./routes/catalog');
 const homepageRoutes = require('./routes/homepage');
+const uploadRoutes = require('./routes/uploads');
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  if (config.app.allowedOrigins.includes('*')) {
+    return true;
+  }
+
+  if (config.app.allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  return config.app.allowedOriginPatterns.some((pattern) => pattern.test(origin));
+}
 
 function createApp() {
   const app = express();
@@ -16,7 +33,13 @@ function createApp() {
   app.use(compression());
   app.use(
     cors({
-      origin: config.app.allowedOrigins,
+      origin(origin, callback) {
+        if (isAllowedOrigin(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(null, false);
+      },
       credentials: false,
     })
   );
@@ -36,6 +59,7 @@ function createApp() {
         `${config.app.apiPrefix}/homepage`,
         `${config.app.apiPrefix}/categories`,
         `${config.app.apiPrefix}/products`,
+        `${config.app.apiPrefix}/uploads/product-images/sign`,
       ],
     });
   });
@@ -43,6 +67,7 @@ function createApp() {
   app.use(config.app.apiPrefix, healthRoutes);
   app.use(config.app.apiPrefix, catalogRoutes);
   app.use(config.app.apiPrefix, homepageRoutes);
+  app.use(config.app.apiPrefix, uploadRoutes);
 
   app.use((_request, response) => {
     response.status(404).json({
