@@ -1,17 +1,57 @@
 # RealCommerce
 
-RealCommerce is now structured as a real split application:
+RealCommerce is split into two deployable applications:
 
-- `client/`: standalone React frontend
-- `server/`: standalone Express and PostgreSQL backend
-- root package: orchestration scripts for running both together
+- `client/`: React storefront intended for Vercel
+- `server/`: Express + PostgreSQL API intended for Render
 
-The platform includes:
+The project now includes production deployment wiring for both sides:
 
-- a PostgreSQL schema for roles, users, customers, tiers, products, categories, attributes, currencies, warehouses, inventory, orders, payments, and shipments
-- an Express API with homepage, catalog, and health endpoints
-- a production-style homepage that reads live API data and falls back gracefully when the API is unavailable
-- backend-local environment management in `server/.env`
+- env-driven frontend API base URL for Vercel
+- env-driven backend CORS rules for Vercel domains
+- Render blueprint config in `render.yaml`
+- Vercel project config in `client/vercel.json`
+- deployment env templates in `client/.env.example` and `server/.env.example`
+- Render-friendly Google Cloud Storage credential support from env variables
+
+## Local setup
+
+1. Install root orchestration dependencies with `npm install`.
+2. Install frontend dependencies with `npm install --prefix client`.
+3. Install backend dependencies with `npm install --prefix server`.
+4. Copy `client/.env.example` to `client/.env` if you want an explicit frontend API URL.
+5. Copy `server/.env.example` to `server/.env` and fill in your PostgreSQL settings.
+6. Initialize the database with `npm run db:init`.
+7. Start both apps with `npm run dev`.
+
+Local defaults:
+
+- frontend: `http://localhost:3000`
+- backend: `http://localhost:4000`
+
+## Scripts
+
+Root:
+
+- `npm run dev`
+- `npm run client`
+- `npm run server`
+- `npm run server:start`
+- `npm run build`
+- `npm run test`
+- `npm run db:init`
+
+Client:
+
+- `npm start`
+- `npm run build`
+- `npm run test:ci`
+
+Server:
+
+- `npm run dev`
+- `npm start`
+- `npm run db:init`
 
 ## API endpoints
 
@@ -19,40 +59,10 @@ The platform includes:
 - `GET /api/homepage`
 - `GET /api/categories`
 - `GET /api/products`
+- `GET /api/products/:productId/images`
+- `POST /api/uploads/product-images/sign`
+- `POST /api/uploads/product-images/:imageId/complete`
 
-## Local setup
+## Deployment
 
-1. Install root orchestration dependencies with `npm install`.
-2. Install the frontend dependencies with `npm install --prefix client`.
-3. Install the backend dependencies with `npm install --prefix server`.
-4. Review `server/.env` or copy `server/.env.example` if you need different PostgreSQL settings.
-5. Initialize the database with `npm run db:init`.
-6. Start both apps with `npm run dev`.
-
-Frontend runs on `http://localhost:3000`.
-Backend runs on `http://localhost:4000`.
-
-## Scripts
-
-- Root:
-- `npm run dev`: run frontend and backend together
-- `npm run client`: run only the frontend package
-- `npm run server`: run only the backend package in dev mode
-- `npm run server:start`: run the backend package in production mode
-- `npm run build`: build the frontend package
-- `npm run test`: run the frontend tests once
-- `npm run db:init`: create and seed the PostgreSQL database
-- Client:
-- `npm start`
-- `npm run build`
-- `npm run test:ci`
-- Server:
-- `npm run dev`
-- `npm start`
-- `npm run db:init`
-
-## Current status
-
-- The `realcommerce` PostgreSQL database has been created locally and seeded successfully.
-- The backend package serves `/api/health` and `/api/homepage` successfully.
-- The client package builds and tests successfully on its own.
+Deployment steps and required environment variables are documented in [docs/deployment.md](docs/deployment.md).

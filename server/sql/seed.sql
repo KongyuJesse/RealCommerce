@@ -55,6 +55,23 @@ INSERT INTO products (
   (3, 'RC-WEL-005', 'Tempo Recovery Massager', 'tempo-recovery-massager', 'Portable recovery tool with programmable pressure bands.', 'Tempo helps remote teams and creators reset between sessions with three calibrated intensity profiles and travel-friendly design.', 249.00, 'USD', 'ACTIVE', TRUE, 'November 2025'),
   (4, 'RC-SCO-006', 'Rover Fold E-Scooter', 'rover-fold-e-scooter', 'Foldable commuter scooter built for short urban loops.', 'Rover packs a stable deck, regenerative braking, and durable range for repeat city routes between office, studio, and warehouse.', 1499.00, 'USD', 'ACTIVE', TRUE, 'March 2026');
 
+INSERT INTO product_images (
+  product_id,
+  storage_provider,
+  source_url,
+  mime_type,
+  alt_text,
+  display_order,
+  is_primary,
+  asset_status
+) VALUES
+  (1, 'external', 'https://images.pexels.com/photos/31726561/pexels-photo-31726561.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Atlas Standing Desk in a clean premium workspace.', 0, TRUE, 'READY'),
+  (2, 'external', 'https://images.pexels.com/photos/31726674/pexels-photo-31726674.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Halo Task Chair next to a modern office desk.', 0, TRUE, 'READY'),
+  (3, 'external', 'https://images.pexels.com/photos/19844043/pexels-photo-19844043.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Pulse Smart Lamp styled on a warm-toned side table.', 0, TRUE, 'READY'),
+  (4, 'external', 'https://images.pexels.com/photos/3394666/pexels-photo-3394666.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Drift Noise-Canceling Buds in a premium product composition.', 0, TRUE, 'READY'),
+  (5, 'external', 'https://images.pexels.com/photos/5327474/pexels-photo-5327474.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Tempo Recovery Massager used during a fitness recovery session.', 0, TRUE, 'READY'),
+  (6, 'external', 'https://images.pexels.com/photos/15818617/pexels-photo-15818617.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Rover Fold E-Scooter in a city mobility environment.', 0, TRUE, 'READY');
+
 INSERT INTO product_attributes (name, display_name, value_type) VALUES
   ('finish', 'Finish', 'TEXT'),
   ('connectivity', 'Connectivity', 'TEXT'),

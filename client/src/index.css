@@ -8,13 +8,11 @@ html {
 
 body {
   margin: 0;
-  font-family: 'Space Grotesk', 'Avenir Next', 'Segoe UI Variable', sans-serif;
+  font-family: 'Amazon Ember', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background:
-    radial-gradient(circle at top left, rgba(244, 176, 111, 0.28), transparent 32%),
-    linear-gradient(180deg, #fff8ef 0%, #f4efe7 48%, #eef2ed 100%);
-  color: #102033;
+  background: #eaf0f6;
+  color: #102032;
 }
 
 a,

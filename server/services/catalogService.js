@@ -35,6 +35,34 @@ async function getAttributesForProducts(productIds) {
   }, new Map());
 }
 
+async function getPrimaryImagesForProducts(productIds) {
+  if (!productIds.length) {
+    return new Map();
+  }
+
+  const result = await query(
+    `
+      SELECT DISTINCT ON (pi.product_id)
+        pi.product_id,
+        COALESCE(pi.public_url, pi.source_url) AS image_url,
+        pi.alt_text
+      FROM product_images pi
+      WHERE pi.product_id = ANY($1::int[])
+        AND pi.asset_status = 'READY'
+      ORDER BY pi.product_id, pi.is_primary DESC, pi.display_order ASC, pi.id ASC
+    `,
+    [productIds]
+  );
+
+  return result.rows.reduce((grouped, row) => {
+    grouped.set(row.product_id, {
+      url: row.image_url,
+      alt: row.alt_text,
+    });
+    return grouped;
+  }, new Map());
+}
+
 async function listCategories(limit = 4) {
   const result = await query(
     `
@@ -44,12 +72,26 @@ async function listCategories(limit = 4) {
         c.slug,
         c.description,
         c.hero_copy,
+        cover.image_url,
+        cover.alt_text AS image_alt,
         COUNT(p.id)::int AS product_count
       FROM categories c
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(pi.public_url, pi.source_url) AS image_url,
+          pi.alt_text
+        FROM products p2
+        LEFT JOIN product_images pi
+          ON pi.product_id = p2.id
+         AND pi.asset_status = 'READY'
+        WHERE p2.category_id = c.id
+        ORDER BY p2.is_featured DESC, pi.is_primary DESC, pi.display_order ASC, p2.created_at DESC
+        LIMIT 1
+      ) cover ON TRUE
       LEFT JOIN products p
         ON p.category_id = c.id
       WHERE c.is_featured = TRUE
-      GROUP BY c.id
+      GROUP BY c.id, cover.image_url, cover.alt_text
       ORDER BY c.name ASC
       LIMIT $1
     `,
@@ -63,6 +105,8 @@ async function listCategories(limit = 4) {
     description: row.description,
     heroCopy: row.hero_copy,
     productCount: row.product_count,
+    imageUrl: row.image_url,
+    imageAlt: row.image_alt,
   }));
 }
 
@@ -96,6 +140,7 @@ async function listProducts({ featuredOnly = false, limit = 6 } = {}) {
 
   const productIds = result.rows.map((row) => row.id);
   const attributesByProduct = await getAttributesForProducts(productIds);
+  const imagesByProduct = await getPrimaryImagesForProducts(productIds);
 
   return result.rows.map((row) => ({
     id: row.id,
@@ -110,6 +155,8 @@ async function listProducts({ featuredOnly = false, limit = 6 } = {}) {
     category: row.category_name,
     inventoryUnits: row.inventory_units,
     attributes: attributesByProduct.get(row.id) || [],
+    imageUrl: imagesByProduct.get(row.id)?.url || '',
+    imageAlt: imagesByProduct.get(row.id)?.alt || row.name,
   }));
 }
 

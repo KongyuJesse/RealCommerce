@@ -23,7 +23,9 @@ function getStorageClient() {
       options.projectId = config.storage.projectId;
     }
 
-    if (config.storage.keyFilename) {
+    if (config.storage.credentials) {
+      options.credentials = config.storage.credentials;
+    } else if (config.storage.keyFilename) {
       options.keyFilename = config.storage.keyFilename;
     }
 

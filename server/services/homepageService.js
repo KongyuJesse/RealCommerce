@@ -1,240 +1,201 @@
-const { query } = require('../db');
 const { listCategories, listProducts } = require('./catalogService');
+const {
+  categoryProfiles,
+  departmentLinks,
+  productProfiles,
+  trustHighlights,
+  utilityLinks,
+} = require('./storefrontProfiles');
 
-function toNumber(value) {
-  return Number(value);
+function resizeImageUrl(imageUrl, width, height) {
+  if (!imageUrl) {
+    return '';
+  }
+
+  try {
+    const parsedUrl = new URL(imageUrl);
+
+    parsedUrl.searchParams.set('w', String(width));
+    parsedUrl.searchParams.set('h', String(height));
+
+    return parsedUrl.toString();
+  } catch (error) {
+    return imageUrl;
+  }
 }
 
-async function getMetrics() {
-  const result = await query(`
-    SELECT
-      (SELECT COUNT(*)::int FROM products) AS total_products,
-      (SELECT COUNT(*)::int FROM categories) AS total_categories,
-      (SELECT COUNT(*)::int FROM orders) AS total_orders,
-      (SELECT COUNT(*)::int FROM warehouses WHERE is_active = TRUE) AS active_warehouses,
-      (SELECT COALESCE(SUM(quantity_on_hand), 0)::int FROM inventory) AS stock_units,
-      (SELECT COALESCE(SUM(total_amount), 0) FROM orders) AS tracked_revenue
-  `);
+function withProductProfile(product) {
+  const profile = productProfiles[product.slug] || {};
 
-  const row = result.rows[0];
+  return {
+    ...product,
+    imageUrl: resizeImageUrl(product.imageUrl, 1200, 900),
+    badge: profile.badge || 'Featured',
+    compareAt: profile.compareAt || null,
+    rating: profile.rating || 4.7,
+    reviewCount: profile.reviewCount || 40,
+  };
+}
+
+function withCategoryProfile(category) {
+  const profile = categoryProfiles[category.slug] || {};
+
+  return {
+    ...category,
+    imageUrl: resizeImageUrl(category.imageUrl, 1200, 760),
+    eyebrow: profile.eyebrow || 'Featured',
+    ctaLabel: profile.ctaLabel || 'Browse now',
+    description: profile.description || category.description,
+  };
+}
+
+function selectProductsBySlug(products, slugs) {
+  const catalog = new Map(products.map((product) => [product.slug, product]));
+
+  return slugs.map((slug) => catalog.get(slug)).filter(Boolean);
+}
+
+function buildHeroSlides(products) {
+  const featured = selectProductsBySlug(products, [
+    'atlas-standing-desk',
+    'drift-noise-canceling-buds',
+    'rover-fold-e-scooter',
+  ]);
 
   return [
     {
-      label: 'Live SKUs',
-      value: row.total_products,
-      detail: `${row.total_categories} merchandising lanes`,
+      id: 'workspace-refresh',
+      eyebrow: 'Workspace refresh',
+      title: 'Upgrade the room where the work actually happens.',
+      subtitle:
+        'Discover desks, calmer lighting, and ergonomic seating selected for long workdays and better focus.',
+      ctaLabel: 'Shop workspace picks',
+      ctaHref: '#trending-now',
+      imageUrl: resizeImageUrl(featured[0]?.imageUrl, 1800, 820),
+      imageAlt: featured[0]?.imageAlt || 'Workspace collection hero image.',
     },
     {
-      label: 'Warehouses',
-      value: row.active_warehouses,
-      detail: `${row.stock_units} units on hand`,
+      id: 'creator-sound',
+      eyebrow: 'Audio and creator gear',
+      title: 'Sharper sound for focused work, travel, and studio time.',
+      subtitle:
+        'Portable audio picks that move easily between home office, studio sessions, and busy travel days.',
+      ctaLabel: 'Explore audio gear',
+      ctaHref: '#daily-upgrades',
+      imageUrl: resizeImageUrl(featured[1]?.imageUrl, 1800, 820),
+      imageAlt: featured[1]?.imageAlt || 'Audio product hero image.',
     },
     {
-      label: 'Orders Routed',
-      value: row.total_orders,
-      detail: 'Seeded across payment and shipment states',
-    },
-    {
-      label: 'Tracked Revenue',
-      value: toNumber(row.tracked_revenue),
-      detail: 'Gross merchandise value in seeded data',
-      kind: 'currency',
-      currency: 'USD',
+      id: 'move-smarter',
+      eyebrow: 'City mobility',
+      title: 'Move through dense days with gear built for modern routes.',
+      subtitle:
+        'Shop mobility and recovery essentials made for compact commutes and demanding routines.',
+      ctaLabel: 'See mobility',
+      ctaHref: '#shop-by-category',
+      imageUrl: resizeImageUrl(featured[2]?.imageUrl, 1800, 820),
+      imageAlt: featured[2]?.imageAlt || 'Mobility product hero image.',
     },
   ];
 }
 
-async function getPipeline() {
-  const result = await query(`
-    SELECT
-      order_status,
-      COUNT(*)::int AS total
-    FROM orders
-    GROUP BY order_status
-    ORDER BY
-      CASE order_status
-        WHEN 'PENDING' THEN 1
-        WHEN 'PROCESSING' THEN 2
-        WHEN 'PAID' THEN 3
-        WHEN 'SHIPPED' THEN 4
-        WHEN 'DELIVERED' THEN 5
-        ELSE 6
-      END
-  `);
-
-  return result.rows.map((row) => ({
-    status: row.order_status,
-    count: row.total,
-  }));
+function buildPromoTiles(categories) {
+  return categories.slice(0, 4).map((category) => withCategoryProfile(category));
 }
 
-async function getRecentOrders() {
-  const result = await query(`
-    SELECT
-      o.order_number,
-      o.order_status,
-      o.total_amount,
-      o.currency_code,
-      o.placed_at,
-      CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-      COALESCE(p.payment_status, 'PENDING') AS payment_status,
-      COALESCE(s.shipment_status, 'PENDING') AS shipment_status
-    FROM orders o
-    INNER JOIN customers c
-      ON c.id = o.customer_id
-    LEFT JOIN payments p
-      ON p.order_id = o.id
-    LEFT JOIN shipments s
-      ON s.order_id = o.id
-    ORDER BY o.placed_at DESC
-    LIMIT 5
-  `);
+function buildProductRails(products) {
+  const enriched = products.map(withProductProfile);
 
-  return result.rows.map((row) => ({
-    orderNumber: row.order_number,
-    customerName: row.customer_name,
-    status: row.order_status,
-    paymentStatus: row.payment_status,
-    shipmentStatus: row.shipment_status,
-    total: toNumber(row.total_amount),
-    currency: row.currency_code,
-    placedAt: row.placed_at,
-  }));
+  return [
+    {
+      id: 'trending-now',
+      title: 'Popular picks across workspace, audio, and lighting',
+      subtitle: 'A tighter edit of the products customers reach for most often.',
+      products: enriched,
+    },
+    {
+      id: 'daily-upgrades',
+      title: 'Portable favorites for work, travel, and recovery',
+      subtitle: 'Compact products chosen for easier movement between rooms, bags, and routines.',
+      products: selectProductsBySlug(enriched, [
+        'drift-noise-canceling-buds',
+        'pulse-smart-lamp',
+        'tempo-recovery-massager',
+        'rover-fold-e-scooter',
+        'atlas-standing-desk',
+      ]),
+    },
+  ];
 }
 
-async function getWarehouses() {
-  const result = await query(`
-    SELECT
-      w.code,
-      w.name,
-      w.city,
-      w.country,
-      w.capacity_units,
-      COALESCE(SUM(i.quantity_on_hand), 0)::int AS quantity_on_hand,
-      ROUND(
-        (
-          COALESCE(SUM(i.quantity_on_hand), 0)::numeric
-          / NULLIF(w.capacity_units, 0)
-        ) * 100,
-        1
-      ) AS utilization
-    FROM warehouses w
-    LEFT JOIN inventory i
-      ON i.warehouse_id = w.id
-    WHERE w.is_active = TRUE
-    GROUP BY w.id
-    ORDER BY utilization DESC NULLS LAST, w.name ASC
-  `);
+function buildFeatureBanner(products) {
+  const desk = products.find((product) => product.slug === 'atlas-standing-desk');
+  const lamp = products.find((product) => product.slug === 'pulse-smart-lamp');
+  const audio = products.find((product) => product.slug === 'drift-noise-canceling-buds');
+  const bannerImage = desk?.imageUrl || lamp?.imageUrl || audio?.imageUrl || '';
 
-  return result.rows.map((row) => ({
-    code: row.code,
-    name: row.name,
-    city: row.city,
-    country: row.country,
-    capacityUnits: row.capacity_units,
-    quantityOnHand: row.quantity_on_hand,
-    utilization: toNumber(row.utilization || 0),
-  }));
-}
-
-async function getCurrencies() {
-  const result = await query(`
-    WITH base_currency AS (
-      SELECT code
-      FROM currencies
-      WHERE is_base = TRUE
-      LIMIT 1
-    ),
-    latest_rates AS (
-      SELECT DISTINCT ON (er.target_currency_code)
-        er.target_currency_code,
-        er.rate,
-        er.effective_at
-      FROM exchange_rates er
-      INNER JOIN base_currency bc
-        ON bc.code = er.base_currency_code
-      ORDER BY er.target_currency_code, er.effective_at DESC
-    )
-    SELECT
-      c.code,
-      c.name,
-      c.symbol,
-      c.is_base,
-      COALESCE(lr.rate, 1) AS rate,
-      lr.effective_at
-    FROM currencies c
-    LEFT JOIN latest_rates lr
-      ON lr.target_currency_code = c.code
-    ORDER BY c.code ASC
-  `);
-
-  return result.rows.map((row) => ({
-    code: row.code,
-    name: row.name,
-    symbol: row.symbol,
-    isBase: row.is_base,
-    rate: toNumber(row.rate),
-    effectiveAt: row.effective_at,
-  }));
+  return {
+    eyebrow: 'Room builder',
+    title: 'Layer desks, light, and sound into one sharper setup.',
+    subtitle:
+      'Build a calmer setup with a few focused upgrades that work better together than they do alone.',
+    imageUrl: resizeImageUrl(bannerImage, 1600, 900),
+    imageAlt: desk?.imageAlt || lamp?.imageAlt || audio?.imageAlt || 'Featured bundle image.',
+    ctaLabel: 'Build the setup',
+    ctaHref: '#shop-by-category',
+    highlights: ['Desk systems', 'Warm task lighting', 'Travel-ready audio'],
+  };
 }
 
 async function getHomepageData() {
-  const [
-    metrics,
-    pipeline,
-    recentOrders,
-    warehouses,
-    currencies,
-    featuredCategories,
-    featuredProducts,
-  ] = await Promise.all([
-    getMetrics(),
-    getPipeline(),
-    getRecentOrders(),
-    getWarehouses(),
-    getCurrencies(),
+  const [featuredCategories, featuredProducts] = await Promise.all([
     listCategories(4),
     listProducts({ featuredOnly: true, limit: 6 }),
   ]);
 
+  const profiledCategories = featuredCategories.map(withCategoryProfile);
+  const profiledProducts = featuredProducts.map(withProductProfile);
+
   return {
     updatedAt: new Date().toISOString(),
-    hero: {
-      eyebrow: 'RealCommerce operations cockpit',
-      title: 'Operate catalog, orders, and fulfilment from one resilient commerce stack.',
-      subtitle:
-        'This homepage is backed by PostgreSQL and an Express API so merchandising, warehouse activity, exchange rates, and order flow stay in one operational view.',
-      primaryCta: {
-        label: 'Browse featured SKUs',
-        href: '#featured-products',
-      },
-      secondaryCta: {
-        label: 'Review order flow',
-        href: '#operations',
-      },
-    },
-    highlights: [
+    utilityLinks,
+    departmentLinks,
+    heroSlides: buildHeroSlides(profiledProducts),
+    promoTiles: buildPromoTiles(profiledCategories),
+    productRails: buildProductRails(profiledProducts),
+    featureBanner: buildFeatureBanner(profiledProducts),
+    shopByCategory: profiledCategories,
+    trustHighlights,
+    dealStrip: [
       {
-        title: 'Catalog depth',
-        text: 'Products, categories, and attribute matrices are modeled in PostgreSQL for clean API reads.',
+        title: 'Deals up to 18% off',
+        text: 'Selected workspace and creator favorites are priced for a limited seasonal window.',
       },
       {
-        title: 'Fulfilment visibility',
-        text: 'Inventory sits across multiple warehouses with utilization and reorder thresholds ready for expansion.',
+        title: 'New arrivals this week',
+        text: 'Fresh desk, lighting, and mobility additions are now live across featured collections.',
       },
       {
-        title: 'Commercial context',
-        text: 'Orders, payments, shipments, and exchange rates are linked so the homepage can surface real operating signals.',
+        title: 'Business pricing',
+        text: 'Flexible buying options for teams, studios, and modern retail customers.',
+      },
+      {
+        title: 'Gift-ready picks',
+        text: 'Portable audio, lamps, and recovery essentials make practical premium gifts.',
       },
     ],
-    metrics,
-    featuredCategories,
-    featuredProducts,
-    operations: {
-      pipeline,
-      recentOrders,
-      warehouses,
-      currencies,
+    searchSuggestions: [
+      'standing desk',
+      'wireless audio',
+      'smart lamp',
+      'recovery massager',
+      'electric scooter',
+    ],
+    footerLinks: {
+      shop: ["Today's deals", 'Best sellers', 'Workspace', 'Audio'],
+      support: ['Help center', 'Returns', 'Delivery', 'Business orders'],
+      about: ['Our story', 'Sustainability', 'Trade program', 'Store locations'],
+      connect: ['Email updates', 'Instagram', 'X', 'Contact us'],
     },
   };
 }
