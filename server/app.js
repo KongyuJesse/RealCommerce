@@ -8,6 +8,7 @@ const healthRoutes = require('./routes/health');
 const catalogRoutes = require('./routes/catalog');
 const homepageRoutes = require('./routes/homepage');
 const uploadRoutes = require('./routes/uploads');
+const orderRoutes = require('./routes/orders');
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -59,6 +60,7 @@ function createApp() {
         `${config.app.apiPrefix}/homepage`,
         `${config.app.apiPrefix}/categories`,
         `${config.app.apiPrefix}/products`,
+        `${config.app.apiPrefix}/orders`,
         `${config.app.apiPrefix}/uploads/product-images/sign`,
       ],
     });
@@ -66,7 +68,8 @@ function createApp() {
 
   app.use(config.app.apiPrefix, healthRoutes);
   app.use(config.app.apiPrefix, catalogRoutes);
-  app.use(config.app.apiPrefix, homepageRoutes);
+  app.use(config.app.apiPrefix, homepageRoutes
+  app.use(`${config.app.apiPrefix}/orders`, orderRoutes););
   app.use(config.app.apiPrefix, uploadRoutes);
 
   app.use((_request, response) => {
