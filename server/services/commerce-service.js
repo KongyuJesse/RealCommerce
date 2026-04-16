@@ -10,6 +10,7 @@ const {
   getPaymentMethods,
   getShippingMethods,
 } = require('./content-service');
+const { listAdminActivity, recordAdminActivity } = require('./activity-log-service');
 const { listManagedUsers, listWarehouses } = require('./admin-service');
 const { getExchangeRateSyncStatus } = require('./exchange-rate-sync-service');
 const { assert, asNumber, isNonEmptyString, normalizeEmail, isEmail } = require('../utils/validation');
@@ -1573,7 +1574,7 @@ const getAdvancedAnalyticsReport = async () => {
 };
 
 const getAdminDashboard = async () => {
-  const [overview, lowStock, recentOrders, topProducts, sellerHealth, platformSettings, reorderQueue, analytics, userDirectory, teamOverview, warehouseNetwork, exchangeRateSync] = await Promise.all([
+  const [overview, lowStock, recentOrders, topProducts, sellerHealth, platformSettings, reorderQueue, analytics, userDirectory, teamOverview, warehouseNetwork, exchangeRateSync, activityFeed] = await Promise.all([
     query(
       `
         SELECT
@@ -1652,6 +1653,7 @@ const getAdminDashboard = async () => {
     ),
     listWarehouses(),
     getExchangeRateSyncStatus(),
+    listAdminActivity({ limit: 14 }),
   ]);
 
   const activeUsers = Number(teamOverview.rows[0]?.active_users || 0);
@@ -1683,6 +1685,7 @@ const getAdminDashboard = async () => {
     analytics,
     userDirectory,
     warehouseNetwork,
+    activityFeed,
     externalServices: {
       storage: getStorageStatus(),
       exchangeRates: exchangeRateSync,
@@ -1691,12 +1694,13 @@ const getAdminDashboard = async () => {
 };
 
 const getOperationsDashboard = async () => {
-  const [shipmentFeed, warehouses, shipmentEvents, reorderQueue, exchangeRateSync] = await Promise.all([
+  const [shipmentFeed, warehouses, shipmentEvents, reorderQueue, exchangeRateSync, activityFeed] = await Promise.all([
     listShipments({ limit: 8 }),
     listWarehouses(),
     query('SELECT se.status, se.event_code, se.location, se.note, se.is_public, se.metadata, se.event_time, s.tracking_number FROM shipment_events se JOIN shipments s ON s.id = se.shipment_id ORDER BY se.event_time DESC LIMIT 10'),
     getOpenReorderQueue(),
     getExchangeRateSyncStatus(),
+    listAdminActivity({ limit: 14 }),
   ]);
 
   return {
@@ -1705,6 +1709,7 @@ const getOperationsDashboard = async () => {
     warehouses,
     shipmentEvents: shipmentEvents.rows,
     reorderQueue,
+    activityFeed,
     externalServices: {
       exchangeRates: exchangeRateSync,
     },
@@ -2843,6 +2848,22 @@ const createProduct = async ({ actor, payload }) => {
       await client.query('INSERT INTO inventory (product_id, warehouse_id, quantity_on_hand, reorder_point, safety_stock) VALUES ($1, $2, $3, $4, $5)', [insert.rows[0].id, stock.warehouseId, Number(stock.quantityOnHand || 0), Number(stock.reorderPoint || 0), Number(stock.safetyStock || 0)]);
     }
 
+    await recordAdminActivity({
+      client,
+      actorUserId: actor?.user_id,
+      actorRole: actor?.role_name,
+      action: 'product.created',
+      entityType: 'product',
+      entityId: insert.rows[0].id,
+      summary: `Created product ${payload.name.trim()}.`,
+      metadata: {
+        sku: payload.sku.trim(),
+        slug: normalizedSlug,
+        sellerProfileId,
+        categoryId: payload.categoryId,
+      },
+    });
+
     return insert.rows[0];
   });
 };
@@ -2914,10 +2935,25 @@ const createSellerDiscountCampaign = async ({ actor, payload }) => {
     ]
   );
 
+  await recordAdminActivity({
+    actorUserId: actor?.user_id,
+    actorRole: actor?.role_name,
+    action: 'discount.created',
+    entityType: 'discount_campaign',
+    entityId: result.rows[0].id,
+    summary: `Created discount campaign ${payload.name.trim()}.`,
+    metadata: {
+      sellerProfileId,
+      appliesTo,
+      discountType: String(payload.discountType).toUpperCase(),
+      discountValue: Number(payload.discountValue),
+    },
+  });
+
   return mapMoneyRow(result.rows[0], ['discount_value']);
 };
 
-const updatePlatformSettings = async ({ payload }) => {
+const updatePlatformSettings = async ({ actor = null, payload }) => {
   const editableSettings = {
     tax_rate: 'Default marketplace tax rate used by the quote engine.',
     free_shipping_threshold: 'Order value at which standard shipping becomes free.',
@@ -2957,6 +2993,18 @@ const updatePlatformSettings = async ({ payload }) => {
     );
   }
 
+  await recordAdminActivity({
+    actorUserId: actor?.user_id,
+    actorRole: actor?.role_name,
+    action: 'platform.settings.updated',
+    entityType: 'platform_settings',
+    entityId: 'global',
+    summary: `Updated ${entries.length} platform setting${entries.length === 1 ? '' : 's'}.`,
+    metadata: {
+      keys: entries.map(([key]) => key),
+    },
+  });
+
   return getPlatformSettings();
 };
 
@@ -2990,7 +3038,7 @@ const attachProductImage = async ({ actor, productId, publicUrl, sourceUrl, altT
   });
 };
 
-const updateOrderStatus = async ({ orderId, status, actorRole, note }) => {
+const updateOrderStatus = async ({ orderId, status, actorRole, actorUserId = null, note }) => {
   const normalizedStatus = normalizeText(status).toUpperCase();
   assert(isNonEmptyString(normalizedStatus), 'Status is required.');
   assertValidOrderStatus(normalizedStatus);
@@ -2999,11 +3047,23 @@ const updateOrderStatus = async ({ orderId, status, actorRole, note }) => {
     const updatedOrder = await client.query('UPDATE orders SET order_status = $1 WHERE id = $2 RETURNING id', [normalizedStatus, orderId]);
     assert(updatedOrder.rowCount > 0, 'Order not found.', 404);
     await client.query('INSERT INTO order_status_events (order_id, status, note, actor_role) VALUES ($1, $2, $3, $4)', [orderId, normalizedStatus, note || 'Status updated from dashboard.', actorRole]);
+    await recordAdminActivity({
+      client,
+      actorUserId,
+      actorRole,
+      action: 'order.status.updated',
+      entityType: 'order',
+      entityId: orderId,
+      summary: `Updated order ${orderId} to ${normalizedStatus}.`,
+      metadata: {
+        note: note || null,
+      },
+    });
     await refreshAnalyticsSnapshots(client);
   });
 };
 
-const createShipmentEvent = async ({ shipmentId, payload = {}, actorRole }) => {
+const createShipmentEvent = async ({ shipmentId, payload = {}, actorRole, actorUserId = null }) => {
   return withTransaction(async (client) => {
     await applyShipmentTrackingUpdate({
       client,
@@ -3018,6 +3078,21 @@ const createShipmentEvent = async ({ shipmentId, payload = {}, actorRole }) => {
       enforceTransition: Boolean(payload.status),
     });
 
+    await recordAdminActivity({
+      client,
+      actorUserId,
+      actorRole,
+      action: 'shipment.event.created',
+      entityType: 'shipment',
+      entityId: shipmentId,
+      summary: `Recorded shipment event for shipment ${shipmentId}.`,
+      metadata: {
+        status: payload.status || null,
+        eventCode: payload.eventCode || 'MANUAL_UPDATE',
+        isPublic: normalizeBoolean(payload.isPublic, true),
+      },
+    });
+
     return getShipmentDetailById({
       shipmentId,
       actor: { role_name: actorRole || 'operations_manager' },
@@ -3026,7 +3101,7 @@ const createShipmentEvent = async ({ shipmentId, payload = {}, actorRole }) => {
   });
 };
 
-const updateShipmentStatus = async ({ shipmentId, status, location, note, actorRole }) => {
+const updateShipmentStatus = async ({ shipmentId, status, location, note, actorRole, actorUserId = null }) => {
   const normalizedStatus = normalizeText(status).toUpperCase();
   assert(isNonEmptyString(normalizedStatus), 'Status is required.');
 
@@ -3042,6 +3117,20 @@ const updateShipmentStatus = async ({ shipmentId, status, location, note, actorR
       metadata: { source: 'operations_dashboard' },
       actorRole: actorRole || 'operations_manager',
       enforceTransition: true,
+    });
+
+    await recordAdminActivity({
+      client,
+      actorUserId,
+      actorRole: actorRole || 'operations_manager',
+      action: 'shipment.status.updated',
+      entityType: 'shipment',
+      entityId: shipmentId,
+      summary: `Updated shipment ${shipmentId} to ${normalizedStatus}.`,
+      metadata: {
+        location: location || 'Operations desk',
+        note: note || null,
+      },
     });
   });
 };

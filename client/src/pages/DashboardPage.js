@@ -63,6 +63,8 @@ const buildTabs = (session) => {
     tabs.push({ id: 'people', label: 'People' });
   }
 
+  tabs.push({ id: 'activity', label: 'Activity' });
+
   if (capabilities.canManageExchangeRates || capabilities.canViewAnalytics) {
     tabs.push({ id: 'rates', label: 'Rates' });
   }
@@ -99,6 +101,7 @@ const DashboardPage = (props) => {
     submitWarehouse,
     toggleManagedUserStatus,
     toggleWarehouseStatus,
+    updateReorderRequestStatus,
     warehouseForm,
     setWarehouseForm,
     categories,
@@ -140,6 +143,7 @@ const DashboardPage = (props) => {
   const userDirectory = adminDashboard?.userDirectory || [];
   const warehouseNetwork = adminDashboard?.warehouseNetwork || operationsDashboard?.warehouses || [];
   const reorderQueue = operationsDashboard?.reorderQueue || adminDashboard?.reorderQueue || [];
+  const activityFeed = adminDashboard?.activityFeed || operationsDashboard?.activityFeed || [];
   const exchangeService =
     adminDashboard?.externalServices?.exchangeRates ||
     operationsDashboard?.externalServices?.exchangeRates ||
@@ -580,7 +584,23 @@ const DashboardPage = (props) => {
                     <strong>{request.product_name}</strong>
                     <small>{request.warehouse_name} | on hand {request.quantity_on_hand} / reorder {request.reorder_point}</small>
                   </span>
-                  <span style={{ fontWeight: 700 }}>+{request.quantity_requested}</span>
+                  <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <span style={{ fontWeight: 700 }}>+{request.quantity_requested}</span>
+                    <button
+                      className="ghost-btn ghost-btn-small"
+                      type="button"
+                      onClick={() => updateReorderRequestStatus(request.id, 'ORDERED')}
+                    >
+                      Ordered
+                    </button>
+                    <button
+                      className="ghost-btn ghost-btn-small"
+                      type="button"
+                      onClick={() => updateReorderRequestStatus(request.id, 'RECEIVED')}
+                    >
+                      Received
+                    </button>
+                  </div>
                 </div>
               )) : (
                 <p className="muted-copy">No reorder requests are open.</p>
@@ -912,6 +932,32 @@ const DashboardPage = (props) => {
               </div>
             </DashboardCard>
           </div>
+        </div>
+      ) : null}
+
+      {activeTab === 'activity' ? (
+        <div className="dashboard-sections">
+          <DashboardCard title="Activity Feed" copy="Recent staff actions across users, warehouses, inventory, shipments, and platform controls.">
+            <div className="timeline" aria-label="Administrative activity">
+              {activityFeed.length > 0 ? activityFeed.map((entry) => (
+                <div className="timeline-item" key={entry.id}>
+                  <span className="timeline-dot" aria-hidden="true" />
+                  <div>
+                    <strong>{entry.summary}</strong>
+                    <small>
+                      {entry.actor_name || titleize(entry.actor_role || 'system')} · {titleize(entry.action)} · {formatDate(entry.created_at)}
+                    </small>
+                    <p>
+                      {titleize(entry.entity_type)}
+                      {entry.entity_id ? ` #${entry.entity_id}` : ''}
+                    </p>
+                  </div>
+                </div>
+              )) : (
+                <p className="muted-copy">Activity will appear here as staff actions are performed.</p>
+              )}
+            </div>
+          </DashboardCard>
         </div>
       ) : null}
 

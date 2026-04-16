@@ -350,4 +350,76 @@ INSERT INTO shipment_events (shipment_id, status, event_code, location, note, is
 SELECT refresh_customer_lifetime_and_tier(id)
 FROM customers;
 
+INSERT INTO external_service_syncs (
+  service_name,
+  provider,
+  trigger,
+  status,
+  summary,
+  details,
+  started_at,
+  completed_at
+) VALUES
+  (
+    'exchange_rates',
+    'frankfurter',
+    'seed',
+    'SUCCESS',
+    'Synchronized baseline currency pairs for the launch environment.',
+    '{"baseCurrencyCode":"USD","pairCount":3,"providerDate":"2026-03-08"}'::jsonb,
+    '2026-03-08T06:30:00Z',
+    '2026-03-08T06:30:12Z'
+  );
+
+INSERT INTO admin_activity_logs (
+  actor_user_id,
+  actor_role,
+  action,
+  entity_type,
+  entity_id,
+  summary,
+  metadata,
+  created_at
+) VALUES
+  (
+    1,
+    'admin',
+    'platform.settings.updated',
+    'platform_settings',
+    'global',
+    'Updated launch pricing and support defaults.',
+    '{"keys":["tax_rate","free_shipping_threshold","support_email"]}'::jsonb,
+    '2026-03-08T06:45:00Z'
+  ),
+  (
+    2,
+    'operations_manager',
+    'warehouse.updated',
+    'warehouse',
+    '1',
+    'Rebalanced Lagos Core Fulfilment capacity targets.',
+    '{"updatedFields":["capacityUnits","isActive"]}'::jsonb,
+    '2026-03-08T07:10:00Z'
+  ),
+  (
+    3,
+    'merchandising_manager',
+    'product.created',
+    'product',
+    '6',
+    'Published Rover Fold E-Scooter to the managed catalog.',
+    '{"sku":"RC-SCO-006","categoryId":4,"sellerProfileId":2}'::jsonb,
+    '2026-03-08T07:35:00Z'
+  ),
+  (
+    2,
+    'operations_manager',
+    'shipment.status.updated',
+    'shipment',
+    '1',
+    'Updated shipment 1 to PACKED.',
+    '{"location":"Lagos Core Fulfilment","note":"Ready for outbound scan."}'::jsonb,
+    '2026-03-08T10:10:00Z'
+  );
+
 REFRESH MATERIALIZED VIEW weekly_category_sales_snapshot;

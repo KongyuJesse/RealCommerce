@@ -49,6 +49,7 @@ const {
   addToWishlist,
   removeFromWishlist,
 } = require('../services/wishlist-service');
+const { listAdminActivity, recordAdminActivity } = require('../services/activity-log-service');
 const {
   createManagedUser,
   createManualReorderRequest,
@@ -421,6 +422,7 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
     await updateOrderStatus({
       orderId: request.params.orderId,
       status: request.body?.status,
+      actorUserId: request.currentUser.user_id,
       actorRole: request.currentUser.role_name,
       note: request.body?.note,
     });
@@ -433,6 +435,7 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
       status: request.body?.status,
       location: request.body?.location,
       note: request.body?.note,
+      actorUserId: request.currentUser.user_id,
       actorRole: request.currentUser.role_name,
     });
     response.json({ success: true });
@@ -450,12 +453,14 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
     response.status(201).json(await createShipmentEvent({
       shipmentId: request.params.shipmentId,
       payload: request.body || {},
+      actorUserId: request.currentUser.user_id,
       actorRole: request.currentUser.role_name,
     }));
   }));
 
   router.put('/admin/platform-settings', requireAuth(['admin', 'merchandising_manager']), wrap(async (request, response) => {
     response.json(await updatePlatformSettings({
+      actor: request.currentUser,
       payload: request.body || {},
     }));
   }));
@@ -471,12 +476,16 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
   }));
 
   router.post('/admin/users', requireAuth(['admin']), wrap(async (request, response) => {
-    response.status(201).json(await createManagedUser(request.body || {}));
+    response.status(201).json(await createManagedUser({
+      actor: request.currentUser,
+      payload: request.body || {},
+    }));
   }));
 
   router.patch('/admin/users/:userId', requireAuth(['admin']), wrap(async (request, response) => {
     response.json(
       await updateManagedUser({
+        actor: request.currentUser,
         userId: request.params.userId,
         payload: request.body || {},
       })
@@ -488,12 +497,16 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
   }));
 
   router.post('/admin/warehouses', requireAuth(warehouseManagerRoles), wrap(async (request, response) => {
-    response.status(201).json(await createWarehouse(request.body || {}));
+    response.status(201).json(await createWarehouse({
+      actor: request.currentUser,
+      payload: request.body || {},
+    }));
   }));
 
   router.patch('/admin/warehouses/:warehouseId', requireAuth(warehouseManagerRoles), wrap(async (request, response) => {
     response.json(
       await updateWarehouse({
+        actor: request.currentUser,
         warehouseId: request.params.warehouseId,
         payload: request.body || {},
       })
@@ -501,12 +514,16 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
   }));
 
   router.post('/admin/reorder-requests', requireAuth(warehouseManagerRoles), wrap(async (request, response) => {
-    response.status(201).json(await createManualReorderRequest(request.body || {}));
+    response.status(201).json(await createManualReorderRequest({
+      actor: request.currentUser,
+      payload: request.body || {},
+    }));
   }));
 
   router.patch('/admin/reorder-requests/:requestId/status', requireAuth(warehouseManagerRoles), wrap(async (request, response) => {
     response.json(
       await updateReorderRequestStatus({
+        actor: request.currentUser,
         requestId: request.params.requestId,
         payload: request.body || {},
       })
@@ -517,11 +534,36 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
     response.json(await getExchangeRateSyncStatus());
   }));
 
+  router.get('/admin/activity', requireAuth(['admin', 'operations_manager', 'merchandising_manager']), wrap(async (request, response) => {
+    response.json(
+      await listAdminActivity({
+        limit: request.query.limit,
+        action: request.query.action,
+        entityType: request.query.entityType,
+      })
+    );
+  }));
+
   router.post('/admin/integrations/exchange-rates/sync', requireAuth(['admin', 'merchandising_manager']), wrap(async (request, response) => {
-    response.json(await syncExchangeRates({
+    const result = await syncExchangeRates({
       trigger: 'manual',
       force: request.body?.force === true,
-    }));
+    });
+
+    await recordAdminActivity({
+      actorUserId: request.currentUser.user_id,
+      actorRole: request.currentUser.role_name,
+      action: 'exchange_rates.synced',
+      entityType: 'external_service',
+      entityId: 'exchange_rates',
+      summary: `Triggered manual exchange-rate synchronization.`,
+      metadata: {
+        status: result.status,
+        pairCount: result.pairCount || null,
+      },
+    });
+
+    response.json(result);
   }));
 
   router.post('/uploads/product-images/sign', requireAuth(catalogManagerRoles), wrap(async (request, response) => {

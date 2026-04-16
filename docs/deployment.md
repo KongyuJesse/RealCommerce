@@ -117,6 +117,7 @@ If the variable is empty in local development, CRA falls back to the local proxy
    - backend readiness: `https://your-render-api.onrender.com/api/ready`
    - backend storage status: `https://your-render-api.onrender.com/api/storage/status`
    - admin exchange-rate sync status: `https://your-render-api.onrender.com/api/admin/integrations/exchange-rates`
+   - admin activity feed: `https://your-render-api.onrender.com/api/admin/activity`
    - frontend loads and displays API-backed homepage content
    - customer registration and login succeed
    - admin and customer dashboards load role-specific tabs and actions

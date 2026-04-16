@@ -820,6 +820,16 @@ function App() {
     }, `Reorder request queued for "${inventoryRow.product_name}" at ${inventoryRow.warehouse_name}.`);
   };
 
+  const updateReorderRequestStatus = async (requestId, status) => {
+    await withBusy(async () => {
+      await apiRequest(`/api/admin/reorder-requests/${requestId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      await refreshBootstrap();
+    }, `Reorder request moved to ${status}.`);
+  };
+
   const renderProductComposer = () => (
     <ProductComposer
       showSellerField={false}
@@ -995,6 +1005,7 @@ function App() {
           submitWarehouse={submitWarehouse}
           toggleManagedUserStatus={toggleManagedUserStatus}
           toggleWarehouseStatus={toggleWarehouseStatus}
+          updateReorderRequestStatus={updateReorderRequestStatus}
           warehouseForm={warehouseForm}
           setWarehouseForm={setWarehouseForm}
           categories={data.lookups?.categories || []}

@@ -13,6 +13,7 @@ The repo is now set up for production-oriented delivery with:
 - role-aware admin and customer workspaces with separate dashboard capabilities
 - warehouse management, user management, reorder workflows, and wishlist support
 - hourly external exchange-rate synchronization with audit visibility
+- staff activity audit logging across platform, catalog, warehouse, and fulfillment actions
 - GitHub Actions CI for test, build, and server smoke checks
 - deployment-ready env templates in `client/.env.example` and `server/.env.example`
 
@@ -102,6 +103,7 @@ Server:
 - `GET /api/admin/warehouses`
 - `POST /api/admin/warehouses`
 - `PATCH /api/admin/warehouses/:warehouseId`
+- `GET /api/admin/activity`
 - `POST /api/admin/reorder-requests`
 - `PATCH /api/admin/reorder-requests/:requestId/status`
 - `GET /api/admin/integrations/exchange-rates`
@@ -119,6 +121,7 @@ Server:
 - Order tracking requires an authenticated session.
 - Admin, merchandising, and operations routes are role-protected on the API.
 - Customer sessions now receive personalized dashboard data, wishlist preview, loyalty progress, and recommended products.
+- Staff workspaces now surface an activity feed for operational auditability.
 
 ## Deployment
 

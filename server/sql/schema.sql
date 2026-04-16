@@ -37,6 +37,7 @@ DROP TABLE IF EXISTS customers CASCADE;
 DROP TABLE IF EXISTS customer_tiers CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS admin_activity_logs CASCADE;
 DROP TABLE IF EXISTS external_service_syncs CASCADE;
 DROP TABLE IF EXISTS exchange_rates CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
@@ -498,6 +499,18 @@ CREATE TABLE external_service_syncs (
   completed_at TIMESTAMPTZ
 );
 
+CREATE TABLE admin_activity_logs (
+  id SERIAL PRIMARY KEY,
+  actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  actor_role VARCHAR(50),
+  action VARCHAR(80) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(120),
+  summary TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE OR REPLACE FUNCTION refresh_customer_lifetime_and_tier(target_customer_id INTEGER)
 RETURNS VOID AS $$
 DECLARE
@@ -789,6 +802,10 @@ CREATE INDEX idx_exchange_rates_lookup
   ON exchange_rates(base_currency_code, target_currency_code, effective_at DESC);
 CREATE INDEX idx_external_service_syncs_lookup
   ON external_service_syncs(service_name, started_at DESC, id DESC);
+CREATE INDEX idx_admin_activity_logs_created_at
+  ON admin_activity_logs(created_at DESC, id DESC);
+CREATE INDEX idx_admin_activity_logs_entity
+  ON admin_activity_logs(entity_type, entity_id, created_at DESC);
 CREATE UNIQUE INDEX idx_reorder_requests_open_unique
   ON reorder_requests(product_id, warehouse_id)
   WHERE status = 'OPEN';
