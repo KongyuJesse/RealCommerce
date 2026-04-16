@@ -1,22 +1,24 @@
 # RealCommerce
 
-RealCommerce is split into two deployable applications:
+RealCommerce is a split deployment workspace with:
 
-- `client/`: React storefront intended for Vercel
-- `server/`: Express + PostgreSQL API intended for Render
+- `client/`: a React storefront intended for Vercel
+- `server/`: an Express + PostgreSQL API intended for Render
 
-The project now includes production deployment wiring for both sides:
+The repo is now set up for production-oriented delivery with:
 
-- env-driven frontend API base URL for Vercel
-- env-driven backend CORS rules for Vercel domains
-- Render blueprint config in `render.yaml`
-- Vercel project config in `client/vercel.json`
-- deployment env templates in `client/.env.example` and `server/.env.example`
-- Render-friendly Google Cloud Storage credential support from env variables
+- env-driven frontend/backend deployment config
+- professional API request logging with request IDs
+- hardened cookie, CORS, Helmet, and rate-limit defaults
+- role-aware admin and customer workspaces with separate dashboard capabilities
+- warehouse management, user management, reorder workflows, and wishlist support
+- hourly external exchange-rate synchronization with audit visibility
+- GitHub Actions CI for test, build, and server smoke checks
+- deployment-ready env templates in `client/.env.example` and `server/.env.example`
 
 ## Local setup
 
-1. Install root orchestration dependencies with `npm install`.
+1. Install root dependencies with `npm install`.
 2. Install frontend dependencies with `npm install --prefix client`.
 3. Install backend dependencies with `npm install --prefix server`.
 4. Copy `client/.env.example` to `client/.env` if you want an explicit frontend API URL.
@@ -40,6 +42,7 @@ Root:
 - `npm run build`
 - `npm run test`
 - `npm run db:init`
+- `npm run verify`
 
 Client:
 
@@ -52,16 +55,70 @@ Server:
 - `npm run dev`
 - `npm start`
 - `npm run db:init`
+- `npm run db:migrate:shipping`
+- `npm run smoke`
 
-## API endpoints
+## API highlights
 
 - `GET /api/health`
+- `GET /api/ready`
+- `GET /api/storage/status`
+- `GET /api/bootstrap`
 - `GET /api/homepage`
+- `GET /api/lookups`
 - `GET /api/categories`
 - `GET /api/products`
-- `GET /api/products/:productId/images`
+- `GET /api/products/:slug`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/session`
+- `GET /api/cart`
+- `POST /api/cart/items`
+- `PATCH /api/cart/items/:itemId`
+- `DELETE /api/cart/items/:itemId`
+- `POST /api/checkout/quote`
+- `POST /api/checkout/complete`
+- `GET /api/dashboard/customer`
+- `GET /api/dashboard/admin`
+- `GET /api/dashboard/operations`
+- `POST /api/account/addresses`
+- `PATCH /api/account/profile`
+- `DELETE /api/account/addresses/:id`
+- `POST /api/reviews`
+- `GET /api/orders/:orderNumber`
+- `GET /api/tracking/shipments/:trackingNumber`
+- `GET /api/analytics`
+- `GET /api/analytics/inventory-health`
+- `GET /api/wishlist`
+- `POST /api/wishlist`
+- `DELETE /api/wishlist/:productId`
+- `POST /api/wishlist/:productId/move-to-cart`
+- `POST /api/admin/products`
+- `POST /api/admin/discounts`
+- `GET /api/admin/users`
+- `POST /api/admin/users`
+- `PATCH /api/admin/users/:userId`
+- `GET /api/admin/warehouses`
+- `POST /api/admin/warehouses`
+- `PATCH /api/admin/warehouses/:warehouseId`
+- `POST /api/admin/reorder-requests`
+- `PATCH /api/admin/reorder-requests/:requestId/status`
+- `GET /api/admin/integrations/exchange-rates`
+- `POST /api/admin/integrations/exchange-rates/sync`
+- `PATCH /api/admin/orders/:orderId/status`
+- `PATCH /api/admin/shipments/:shipmentId/status`
+- `POST /api/admin/shipments/:shipmentId/events`
+- `PUT /api/admin/platform-settings`
 - `POST /api/uploads/product-images/sign`
 - `POST /api/uploads/product-images/:imageId/complete`
+
+## Authentication notes
+
+- Self-service registration is currently customer-only.
+- Order tracking requires an authenticated session.
+- Admin, merchandising, and operations routes are role-protected on the API.
+- Customer sessions now receive personalized dashboard data, wishlist preview, loyalty progress, and recommended products.
 
 ## Deployment
 

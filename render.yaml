@@ -6,20 +6,68 @@ services:
     buildCommand: npm install
     startCommand: npm start
     autoDeploy: true
-    healthCheckPath: /api/health
+    healthCheckPath: /api/ready
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_NAME
+        value: realcommerce-api
       - key: API_PREFIX
         value: /api
+      - key: TRUST_PROXY
+        value: "1"
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
       - key: CLIENT_ORIGIN
         sync: false
       - key: CLIENT_ORIGIN_REGEX
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_SAME_SITE
+        value: None
+      - key: AUTH_RATE_LIMIT_WINDOW_MS
+        value: "600000"
+      - key: AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS
+        value: "8"
+      - key: AUTH_REGISTER_RATE_LIMIT_MAX_ATTEMPTS
+        value: "4"
+      - key: GLOBAL_RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: GLOBAL_RATE_LIMIT_MAX_REQUESTS
+        value: "300"
       - key: PGSSL
         value: "true"
+      - key: DB_POOL_MAX
+        value: "10"
+      - key: DB_IDLE_TIMEOUT_MS
+        value: "30000"
+      - key: DB_CONNECTION_TIMEOUT_MS
+        value: "10000"
+      - key: DB_STATEMENT_TIMEOUT_MS
+        value: "15000"
+      - key: DB_QUERY_TIMEOUT_MS
+        value: "15000"
+      - key: TAX_RATE
+        value: "0.075"
+      - key: FREE_SHIPPING_THRESHOLD
+        value: "1200"
+      - key: EXCHANGE_RATE_PROVIDER
+        value: frankfurter
+      - key: EXCHANGE_RATE_PROVIDER_BASE_URL
+        value: https://api.frankfurter.app
+      - key: EXCHANGE_RATE_SYNC_ENABLED
+        value: "true"
+      - key: EXCHANGE_RATE_SYNC_INTERVAL_MS
+        value: "3600000"
+      - key: EXCHANGE_RATE_SYNC_TIMEOUT_MS
+        value: "10000"
       - key: MEDIA_STORAGE_PROVIDER
         value: gcs
       - key: GCS_PROJECT_ID
