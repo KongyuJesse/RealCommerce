@@ -1,64 +1,74 @@
+
 const fs = require('fs/promises');
 const path = require('path');
 const { Client } = require('pg');
-const { buildPgConfig, config } = require('../config');
+const config = require('../config');
 
-function quoteIdentifier(value) {
-  return `"${String(value).replace(/"/g, '""')}"`;
-}
+const ssl = config.pgSsl ? { rejectUnauthorized: false } : false;
 
-async function ensureDatabaseExists() {
-  const maintenanceClient = new Client(
-    buildPgConfig(config.database.maintenanceDatabase)
-  );
+const getConnection = (database) =>
+  config.databaseUrl
+    ? { connectionString: config.databaseUrl, ssl }
+    : {
+        host: config.pgHost,
+        port: config.pgPort,
+        user: config.pgUser,
+        password: config.pgPassword,
+        database,
+        ssl,
+      };
 
-  await maintenanceClient.connect();
-
-  try {
-    const existing = await maintenanceClient.query(
-      'SELECT 1 FROM pg_database WHERE datname = $1',
-      [config.database.database]
-    );
-
-    if (existing.rowCount === 0) {
-      await maintenanceClient.query(
-        `CREATE DATABASE ${quoteIdentifier(config.database.database)}`
-      );
-      console.log(`Created database ${config.database.database}`);
-    } else {
-      console.log(`Database ${config.database.database} already exists`);
-    }
-  } finally {
-    await maintenanceClient.end();
+const ensureDatabase = async () => {
+  if (config.databaseUrl) {
+    return;
   }
-}
 
-async function applySqlFiles() {
-  const schemaPath = path.resolve(__dirname, '../sql/schema.sql');
-  const seedPath = path.resolve(__dirname, '../sql/seed.sql');
-  const [schemaSql, seedSql] = await Promise.all([
-    fs.readFile(schemaPath, 'utf8'),
-    fs.readFile(seedPath, 'utf8'),
-  ]);
-
-  const client = new Client(buildPgConfig());
+  const client = new Client(getConnection(config.pgMaintenanceDb));
   await client.connect();
 
   try {
-    await client.query(schemaSql);
-    await client.query(seedSql);
-    console.log('Schema and seed data applied successfully');
+    const exists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [config.pgDatabase]);
+
+    if (exists.rowCount === 0) {
+      await client.query(`CREATE DATABASE "${config.pgDatabase}"`);
+    }
   } finally {
     await client.end();
   }
-}
+};
 
-async function main() {
-  await ensureDatabaseExists();
-  await applySqlFiles();
-}
+const runSqlFile = async (client, fileName) => {
+  const filePath = path.join(__dirname, '..', 'sql', fileName);
+  const sql = await fs.readFile(filePath, 'utf8');
+  await client.query(sql);
+};
+
+const main = async () => {
+  if (!config.databaseUrl && (!config.pgPassword || config.pgPassword === 'your_password_here')) {
+    throw new Error(
+      'Database credentials are not configured. Set PGPASSWORD or DATABASE_URL before running db:init.'
+    );
+  }
+
+  await ensureDatabase();
+
+  const client = new Client(getConnection(config.pgDatabase));
+  await client.connect();
+
+  try {
+    await runSqlFile(client, 'schema.sql');
+    await runSqlFile(client, 'seed.sql');
+    // eslint-disable-next-line no-console
+    console.log('Database initialized successfully.');
+  } finally {
+    await client.end();
+  }
+};
 
 main().catch((error) => {
-  console.error('Database initialization failed:', error);
-  process.exitCode = 1;
+  // eslint-disable-next-line no-console
+  console.error('Database initialization failed.');
+  // eslint-disable-next-line no-console
+  console.error(error);
+  process.exit(1);
 });

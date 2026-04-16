@@ -25,24 +25,49 @@ This project is prepared for:
 - Root directory: `server`
 - Build command: `npm install`
 - Start command: `npm start`
-- Health check path: `/api/health`
+- Health check path: `/api/ready`
 
 ### Required backend environment variables
 
 Set these in Render:
 
 - `NODE_ENV=production`
+- `APP_NAME=realcommerce-api`
 - `API_PREFIX=/api`
+- `TRUST_PROXY=1`
+- `LOG_LEVEL=info`
+- `LOG_FORMAT=json`
 - `CLIENT_ORIGIN=https://your-frontend-domain.vercel.app`
 - `DATABASE_URL=your-render-postgres-connection-string`
+- `SESSION_SECRET=replace-with-a-long-random-secret`
+- `SESSION_COOKIE_SECURE=true`
+- `SESSION_COOKIE_SAME_SITE=None`
 - `PGSSL=true`
 
-### Optional backend environment variables
-
-Use these when needed:
+### Recommended backend environment variables
 
 - `CLIENT_ORIGIN_REGEX=^https://your-project-name-.*\\.vercel\\.app$`
   This allows Vercel preview deployments.
+- `GLOBAL_RATE_LIMIT_WINDOW_MS=900000`
+- `GLOBAL_RATE_LIMIT_MAX_REQUESTS=300`
+- `AUTH_RATE_LIMIT_WINDOW_MS=600000`
+- `AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS=8`
+- `AUTH_REGISTER_RATE_LIMIT_MAX_ATTEMPTS=4`
+- `DB_POOL_MAX=10`
+- `DB_IDLE_TIMEOUT_MS=30000`
+- `DB_CONNECTION_TIMEOUT_MS=10000`
+- `DB_STATEMENT_TIMEOUT_MS=15000`
+- `DB_QUERY_TIMEOUT_MS=15000`
+- `TAX_RATE=0.075`
+- `FREE_SHIPPING_THRESHOLD=1200`
+- `EXCHANGE_RATE_PROVIDER=frankfurter`
+- `EXCHANGE_RATE_PROVIDER_BASE_URL=https://api.frankfurter.app`
+- `EXCHANGE_RATE_SYNC_ENABLED=true`
+- `EXCHANGE_RATE_SYNC_INTERVAL_MS=3600000`
+- `EXCHANGE_RATE_SYNC_TIMEOUT_MS=10000`
+
+### Optional media storage variables
+
 - `MEDIA_STORAGE_PROVIDER=gcs`
 - `GCS_PROJECT_ID=your-google-cloud-project-id`
 - `GCS_BUCKET_NAME=your-google-cloud-storage-bucket`
@@ -56,6 +81,8 @@ For Google Cloud credentials on Render, prefer one of these:
   Base64-encoded service-account JSON.
 
 Keep `GCS_KEY_FILENAME` for local development or file-mounted environments only.
+
+In production, do not leave `SESSION_SECRET` on the development default. The API refuses to boot until a real secret is configured.
 
 ## Frontend on Vercel
 
@@ -77,7 +104,7 @@ Set this in Vercel:
 
 - `REACT_APP_API_BASE_URL=https://your-render-api.onrender.com`
 
-The frontend will use this for `/api/homepage` in production. If the variable is empty in local development, CRA falls back to the local proxy in `client/package.json`.
+If the variable is empty in local development, CRA falls back to the local proxy in `client/package.json`.
 
 ## Cross-service connection checklist
 
@@ -87,7 +114,12 @@ The frontend will use this for `/api/homepage` in production. If the variable is
 4. Redeploy both services after updating env vars.
 5. Verify:
    - backend health: `https://your-render-api.onrender.com/api/health`
+   - backend readiness: `https://your-render-api.onrender.com/api/ready`
+   - backend storage status: `https://your-render-api.onrender.com/api/storage/status`
+   - admin exchange-rate sync status: `https://your-render-api.onrender.com/api/admin/integrations/exchange-rates`
    - frontend loads and displays API-backed homepage content
+   - customer registration and login succeed
+   - admin and customer dashboards load role-specific tabs and actions
 
 ## Local env files
 
@@ -108,14 +140,14 @@ Recommended local values:
   `PGHOST=localhost`
   `PGPORT=5432`
   `PGUSER=postgres`
-  `PGPASSWORD=your_password_here`
+  `PGPASSWORD=your_real_password_here`
   `PGDATABASE=realcommerce`
+  `SESSION_SECRET=replace_me_for_local_dev`
 
 ## Verification
 
 Before deploying, run:
 
 ```bash
-npm run build
-cd client && node node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand
+npm run verify
 ```
