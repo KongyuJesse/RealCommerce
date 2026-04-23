@@ -51,7 +51,7 @@ const validatePassword = (password) => {
   if (!/[^A-Za-z0-9]/.test(password)) throw new Error('Password must include a special character.');
 };
 
-const ssl = config.pgSsl ? { rejectUnauthorized: false } : false;
+const ssl = (config.pgSsl || config.databaseUrl) ? { rejectUnauthorized: false } : false;
 
 const getConnection = () =>
   config.databaseUrl
