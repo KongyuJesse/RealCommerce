@@ -48,6 +48,8 @@ Use the root [render.yaml](../render.yaml) to create:
 - `DATABASE_URL` can point to Render Postgres or any other reachable PostgreSQL instance.
 - If you use an external Postgres URL that requires SSL, keep `PGSSL=true`.
 - If you use an internal Render Postgres connection string, set `PGSSL=false`.
+- If the target database is brand new and empty, the API now bootstraps the base schema and seed data automatically on first startup before applying upgrades.
+- If the target database is partially initialized or manually modified, fix that schema manually instead of relying on automatic bootstrap, because the app intentionally refuses destructive recovery in that state.
 
 ## Option 2: Vercel Frontend + Render API
 

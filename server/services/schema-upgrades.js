@@ -1,4 +1,7 @@
 const { pool } = require('../db');
+const { ensureDatabaseBootstrapped } = require('./database-bootstrap-service');
+
+const SCHEMA_LOCK_ID = 681245901;
 
 const schemaUpgradeStatements = [
   `
@@ -719,17 +722,30 @@ const applySchemaUpgrades = async () => {
   const client = await pool.connect();
 
   try {
+    await client.query('SELECT pg_advisory_lock($1)', [SCHEMA_LOCK_ID]);
+
+    await ensureDatabaseBootstrapped(client, { includeSeedData: true });
+
     await client.query('BEGIN');
 
-    for (const statement of schemaUpgradeStatements) {
-      await client.query(statement);
-    }
+    try {
+      for (const statement of schemaUpgradeStatements) {
+        await client.query(statement);
+      }
 
-    await client.query('COMMIT');
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    }
   } catch (error) {
-    await client.query('ROLLBACK');
     throw error;
   } finally {
+    try {
+      await client.query('SELECT pg_advisory_unlock($1)', [SCHEMA_LOCK_ID]);
+    } catch (_error) {
+      // Ignore advisory unlock failures during shutdown/error unwinding.
+    }
     client.release();
   }
 };
