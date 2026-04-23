@@ -116,7 +116,9 @@ If you prefer Vercel for the frontend:
 
 - deploy `client/` with [client/vercel.json](client/vercel.json)
 - set `REACT_APP_API_BASE_URL` to your API origin
-- set API `CLIENT_ORIGIN` to the deployed frontend origin
+- set API `CLIENT_ORIGIN` to the deployed frontend origin, without a trailing slash
+
+When `CLIENT_ORIGIN` is a `https://<project>.vercel.app` origin, the API also accepts matching Vercel preview domains for that same project automatically. Use `CLIENT_ORIGIN_REGEX` if your preview domain pattern is different.
 
 More detail lives in [docs/deployment.md](docs/deployment.md).
 

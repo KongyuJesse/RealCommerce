@@ -79,6 +79,12 @@ Required API env vars:
 - `SESSION_SECRET`
 - `CLIENT_ORIGIN=https://your-frontend-origin`
 
+Notes:
+
+- Do not include a trailing slash in `CLIENT_ORIGIN`.
+- If `CLIENT_ORIGIN` points to a `https://<project>.vercel.app` production frontend, the API now also accepts matching Vercel preview hosts for that project automatically.
+- If you use a custom preview domain pattern, set `CLIENT_ORIGIN_REGEX` explicitly.
+
 Common API env vars:
 
 - `CLIENT_ORIGIN_REGEX`

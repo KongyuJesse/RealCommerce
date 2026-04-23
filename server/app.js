@@ -10,6 +10,7 @@ const { createApiRouter } = require('./routes/api');
 const { createStaffPortalRouter } = require('./routes/staff-portal');
 const { buildCookieHeader, parseCookies } = require('./utils/http');
 const { logger } = require('./utils/logger');
+const { buildImplicitOriginRegexes, normalizeOrigin } = require('./utils/origin');
 const { bytesToHuman, durationMsFrom, formatDuration, getClientIp } = require('./utils/request');
 
 const app = express();
@@ -17,18 +18,23 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', config.trustProxy);
 
-const allowedOriginRegex = config.clientOriginRegex ? new RegExp(config.clientOriginRegex) : null;
+const allowedOriginRegexes = [
+  ...(config.clientOriginRegex ? [new RegExp(config.clientOriginRegex)] : []),
+  ...buildImplicitOriginRegexes(config.clientOrigins),
+];
 
 const isAllowedOrigin = (origin) => {
-  if (!origin) {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (!normalizedOrigin) {
     return true;
   }
 
-  if (config.clientOrigins.includes(origin)) {
+  if (config.clientOrigins.includes(normalizedOrigin)) {
     return true;
   }
 
-  return Boolean(allowedOriginRegex && allowedOriginRegex.test(origin));
+  return allowedOriginRegexes.some((regex) => regex.test(normalizedOrigin));
 };
 
 app.use((request, response, next) => {
@@ -78,7 +84,7 @@ app.use((request, response, next) => {
 });
 
 app.use((request, response, next) => {
-  const origin = request.headers.origin;
+  const origin = normalizeOrigin(request.headers.origin);
 
   if (origin && !isAllowedOrigin(origin)) {
     logger.warn('Blocked request from disallowed origin', {
