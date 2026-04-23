@@ -45,7 +45,7 @@ const SiteFooter = ({ data, onNavigate }) => {
   const year    = new Date().getFullYear();
   const geo     = data?.geo || {};
   const countryCode  = geo.countryCode  || '';
-  const currencyCode = geo.currencyCode || 'USD';
+  const currencyCode = geo.currencyCode || 'XAF';
 
   return (
     <>

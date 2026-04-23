@@ -41,11 +41,11 @@ const COUNTRY_CURRENCY = {
   IL: 'ILS', JO: 'JOD',
 };
 
-const DEFAULT_COUNTRY = 'US';
-const DEFAULT_CURRENCY = 'USD';
+const DEFAULT_COUNTRY = 'CM';
+const DEFAULT_CURRENCY = 'XAF';
 
 /* ── Supported currencies (must exist in the DB currencies table) ──────── */
-const SUPPORTED_CURRENCIES = new Set(['USD', 'EUR', 'GBP', 'NGN']);
+const SUPPORTED_CURRENCIES = new Set(['USD', 'EUR', 'GBP', 'NGN', 'XAF']);
 
 /**
  * Map a raw country code to a currency that is actually in our DB.

@@ -2,7 +2,7 @@ const { Pool } = require('pg');
 const config = require('./config');
 const { logger } = require('./utils/logger');
 
-const ssl = config.pgSsl ? { rejectUnauthorized: false } : false;
+const ssl = (config.pgSsl || config.databaseUrl) ? { rejectUnauthorized: false } : false;
 
 const basePoolConfig = config.databaseUrl
   ? {

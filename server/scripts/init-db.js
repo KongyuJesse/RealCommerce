@@ -4,7 +4,7 @@ const path = require('path');
 const { Client } = require('pg');
 const config = require('../config');
 
-const ssl = config.pgSsl ? { rejectUnauthorized: false } : false;
+const ssl = (config.pgSsl || config.databaseUrl) ? { rejectUnauthorized: false } : false;
 
 const getConnection = (database) =>
   config.databaseUrl

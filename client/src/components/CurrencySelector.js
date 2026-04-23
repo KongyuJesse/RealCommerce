@@ -3,6 +3,7 @@ import { useCurrency } from '../lib/CurrencyContext';
 import { GlobeIcon } from './MarketplaceIcons';
 
 const FLAG = {
+  XAF: 'CM',
   USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', NGN: '🇳🇬',
   GHS: '🇬🇭', KES: '🇰🇪', ZAR: '🇿🇦', EGP: '🇪🇬',
   CAD: '🇨🇦', AUD: '🇦🇺', NZD: '🇳🇿', SGD: '🇸🇬',
@@ -27,7 +28,10 @@ const CurrencySelector = () => {
 
   const currencies = supportedCurrencies.length
     ? supportedCurrencies
-    : [{ code: 'USD', name: 'US Dollar', symbol: '$' }];
+    : [
+        { code: 'XAF', name: 'Central African CFA Franc', symbol: 'FCFA' },
+        { code: 'USD', name: 'US Dollar', symbol: '$' },
+      ];
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>

@@ -55,6 +55,7 @@ If `REACT_APP_API_BASE_URL` is empty, the CRA proxy in `client/package.json` is 
 - `npm run build` builds the frontend
 - `npm run test` runs the frontend test suite
 - `npm run db:init` creates and seeds the database
+- `npm run seed:admin` creates or updates the platform admin account
 - `npm run verify` runs tests, frontend build, and server smoke validation
 
 ## Demo Accounts
@@ -90,17 +91,20 @@ The included [render.yaml](render.yaml) provisions:
 Set these required values in Render during Blueprint setup:
 
 - `DATABASE_URL`
+
+One strong session secret is required in production:
+
 - `SESSION_SECRET`
-- `PUBLIC_API_URL`
-- `PUBLIC_SITE_URL`
+- or `REALCOMMERCE_SESSION_SECRET`
 
 Optional but commonly needed:
 
 - `CLIENT_ORIGIN_REGEX`
 - `GCS_*` media storage variables
 - `RESEND_API_KEY` or `SMTP_*` email variables
+- `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` if you plan to run `npm run seed:admin`
 
-The static site receives `REACT_APP_API_BASE_URL` from the API service's `PUBLIC_API_URL` env var. The API receives `CLIENT_ORIGIN` from the frontend service's `PUBLIC_SITE_URL` env var.
+The Blueprint wires the static site and API together from each service's Render external URL. It also creates a generated `REALCOMMERCE_SESSION_SECRET` fallback for existing Render services where `SESSION_SECRET` is blank or missing.
 
 ### Vercel + Render
 

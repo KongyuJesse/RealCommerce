@@ -270,7 +270,7 @@ const requestPasswordReset = async ({ email }) => {
     [userId, tokenHash, expiresAt]
   );
 
-  const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+  const clientOrigin = config.clientOrigins[0] || config.renderExternalUrl || 'http://localhost:3000';
   const resetUrl = `${clientOrigin}/#/reset-password/${rawToken}`;
 
   sendPasswordResetEmail({ to: normalizedEmail, fullName, resetUrl }).catch(() => {});

@@ -2,6 +2,17 @@ const dotenv = require('dotenv');
 
 dotenv.config({ quiet: true });
 
+const getFirstNonEmptyEnv = (...keys) => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+};
+
 const parseBoolean = (value, fallback = false) => {
   if (value === undefined || value === null || value === '') {
     return fallback;
@@ -43,7 +54,8 @@ const parseTrustProxy = (value, fallback) => {
 };
 
 const defaultSessionSecret = 'realcommerce-dev-session-secret';
-const resolvedSessionSecret = process.env.SESSION_SECRET || defaultSessionSecret;
+const resolvedSessionSecret =
+  getFirstNonEmptyEnv('SESSION_SECRET', 'REALCOMMERCE_SESSION_SECRET') || defaultSessionSecret;
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 const config = {
@@ -56,7 +68,7 @@ const config = {
   logFormat: (process.env.LOG_FORMAT || (nodeEnv === 'production' ? 'json' : 'pretty')).toLowerCase(),
 
   // CORS
-  clientOrigins: parseOrigins(process.env.CLIENT_ORIGIN || 'http://localhost:3000'),
+  clientOrigins: parseOrigins(getFirstNonEmptyEnv('CLIENT_ORIGIN') || 'http://localhost:3000'),
   clientOriginRegex: process.env.CLIENT_ORIGIN_REGEX || '',
 
   // Database
@@ -77,6 +89,11 @@ const config = {
   // Sessions
   sessionSecret: resolvedSessionSecret,
   isDefaultSessionSecret: resolvedSessionSecret === defaultSessionSecret,
+  sessionSecretSource: getFirstNonEmptyEnv('SESSION_SECRET')
+    ? 'SESSION_SECRET'
+    : getFirstNonEmptyEnv('REALCOMMERCE_SESSION_SECRET')
+      ? 'REALCOMMERCE_SESSION_SECRET'
+      : 'default',
   sessionCookieName: process.env.SESSION_COOKIE_NAME || 'rc_session',
   sessionTtlDays: parseNumber(process.env.SESSION_TTL_DAYS, 14),
   sessionCookieDomain: process.env.SESSION_COOKIE_DOMAIN || '',
@@ -113,6 +130,7 @@ const config = {
   gcsCredentialsBase64: process.env.GCS_CREDENTIALS_BASE64 || '',
   gcsUploadUrlExpiresSeconds: parseNumber(process.env.GCS_UPLOAD_URL_EXPIRES_SECONDS, 900),
   gcsPublicBaseUrl: process.env.GCS_PUBLIC_BASE_URL || '',
+  renderExternalUrl: getFirstNonEmptyEnv('RENDER_EXTERNAL_URL'),
 };
 
 const configErrors = [];
@@ -154,7 +172,7 @@ if (config.clientOriginRegex) {
 if (config.nodeEnv === 'production') {
   if (config.isDefaultSessionSecret || String(config.sessionSecret).length < 32) {
     configErrors.push(
-      'SESSION_SECRET must be set to a strong non-default value with at least 32 characters in production.'
+      'SESSION_SECRET (or REALCOMMERCE_SESSION_SECRET) must be set to a strong non-default value with at least 32 characters in production.'
     );
   }
 

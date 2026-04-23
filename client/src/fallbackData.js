@@ -2,7 +2,7 @@ const fallbackData = {
   site: {
     brand: 'RealCommerce',
     tagline: 'Premium marketplace with multi-currency checkout and warehouse-aware fulfillment.',
-    location: 'Lagos',
+    location: 'Douala',
     spotlightLabel: 'Shop confidently with secure checkout, live exchange rates, and real-time inventory tracking.',
     navigationLinks: [
       { label: 'Home', page: 'home' },

@@ -11,6 +11,7 @@ const CurrencyConverter = ({ currencies = [], exchangeRates = [] }) => {
   const availableCurrencies = currencies.length > 0 
     ? currencies 
     : [
+        { code: 'XAF', name: 'Central African CFA Franc', symbol: 'FCFA' },
         { code: 'USD', name: 'US Dollar', symbol: '$' },
         { code: 'EUR', name: 'Euro', symbol: '€' },
         { code: 'GBP', name: 'British Pound', symbol: '£' },

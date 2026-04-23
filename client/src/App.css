@@ -4745,13 +4745,6 @@
 img {
   transition: opacity 300ms ease;
 }
-img[loading="lazy"] {
-  opacity: 0;
-}
-img[loading="lazy"].loaded,
-img:not([loading]) {
-  opacity: 1;
-}
 
 /* Focus ring polish */
 button:focus-visible,
