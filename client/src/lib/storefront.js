@@ -26,7 +26,6 @@ export const createInitialCheckoutForm = () => ({
 });
 
 export const createInitialRegisterForm = () => ({
-  accountType: 'customer',
   fullName: '',
   email: '',
   password: '',
@@ -36,15 +35,9 @@ export const createInitialRegisterForm = () => ({
   phone: '',
   city: '',
   country: '',
-  storeName: '',
-  storeSlug: '',
-  storeDescription: '',
-  supportEmail: '',
-  payoutCurrencyCode: 'USD',
 });
 
 export const createInitialProductForm = () => ({
-  sellerProfileId: '',
   categoryId: '',
   sku: '',
   name: '',
@@ -63,16 +56,12 @@ export const createInitialProductForm = () => ({
 });
 
 export const createInitialDiscountForm = () => ({
-  sellerProfileId: '',
   name: '',
   code: '',
   description: '',
   discountType: 'PERCENT',
   discountValue: '',
-  appliesTo: 'ALL_PRODUCTS',
-  categoryId: '',
-  productId: '',
-  minimumQuantity: '1',
+  minimumOrderAmount: '0',
   startsAt: '',
   endsAt: '',
 });

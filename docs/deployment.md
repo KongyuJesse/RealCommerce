@@ -1,153 +1,112 @@
 # Deployment Guide
 
-This project is prepared for:
+This repository supports two production layouts:
 
-- backend deployment on Render
-- frontend deployment on Vercel
+1. Render Blueprint for both frontend and API
+2. Vercel for the frontend plus Render for the API
 
-## Architecture
+## Option 1: Render Blueprint
 
-- Render hosts the Express API from `server/`
-- Vercel hosts the React storefront from `client/`
-- Vercel connects to Render through `REACT_APP_API_BASE_URL`
-- Render allows the Vercel domain through `CLIENT_ORIGIN`
+Use the root [render.yaml](../render.yaml) to create:
 
-## Backend on Render
+- `realcommerce-api` as a Node web service from `server/`
+- `realcommerce-web` as a static site from `client/`
 
-### Files already prepared
+### Blueprint setup
 
-- `render.yaml`
-- `server/.env.example`
+1. Push the repository to GitHub.
+2. In Render, create a new Blueprint from the repo.
+3. Provide values for these required env vars when prompted:
 
-### Render service settings
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `PUBLIC_API_URL`
+- `PUBLIC_SITE_URL`
 
-- Service type: `Web Service`
+4. Add optional values as needed:
+
+- `CLIENT_ORIGIN_REGEX`
+- `GCS_PROJECT_ID`
+- `GCS_BUCKET_NAME`
+- `GCS_KEY_FILENAME`
+- `GCS_CREDENTIALS_JSON`
+- `GCS_CREDENTIALS_BASE64`
+- `GCS_PUBLIC_BASE_URL`
+- `RESEND_API_KEY`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+
+### How the services are wired
+
+- The frontend build receives `REACT_APP_API_BASE_URL` from the API service's `PUBLIC_API_URL`.
+- The API receives `CLIENT_ORIGIN` from the frontend service's `PUBLIC_SITE_URL`.
+- Frontend product/media URLs are resolved against `REACT_APP_API_BASE_URL`, which is important when the frontend and API are on different domains.
+
+### Render notes
+
+- `DATABASE_URL` can point to Render Postgres or any other reachable PostgreSQL instance.
+- If you use an external Postgres URL that requires SSL, keep `PGSSL=true`.
+- If you use an internal Render Postgres connection string, set `PGSSL=false`.
+
+## Option 2: Vercel Frontend + Render API
+
+### Frontend
+
+- Root directory: `client`
+- Framework: Create React App
+- Build command: `npm run build`
+- Output directory: `build`
+- Config file: [client/vercel.json](../client/vercel.json)
+
+Required frontend env var:
+
+- `REACT_APP_API_BASE_URL=https://your-api-origin`
+
+### API
+
 - Root directory: `server`
+- Runtime: Node
 - Build command: `npm install`
 - Start command: `npm start`
 - Health check path: `/api/ready`
 
-### Required backend environment variables
+Required API env vars:
 
-Set these in Render:
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `CLIENT_ORIGIN=https://your-frontend-origin`
 
-- `NODE_ENV=production`
-- `APP_NAME=realcommerce-api`
-- `API_PREFIX=/api`
-- `TRUST_PROXY=1`
-- `LOG_LEVEL=info`
-- `LOG_FORMAT=json`
-- `CLIENT_ORIGIN=https://your-frontend-domain.vercel.app`
-- `DATABASE_URL=your-render-postgres-connection-string`
-- `SESSION_SECRET=replace-with-a-long-random-secret`
-- `SESSION_COOKIE_SECURE=true`
-- `SESSION_COOKIE_SAME_SITE=None`
-- `PGSSL=true`
+Common API env vars:
 
-### Recommended backend environment variables
+- `CLIENT_ORIGIN_REGEX`
+- `PGSSL`
+- `GCS_*`
+- `RESEND_API_KEY`
+- `SMTP_*`
 
-- `CLIENT_ORIGIN_REGEX=^https://your-project-name-.*\\.vercel\\.app$`
-  This allows Vercel preview deployments.
-- `GLOBAL_RATE_LIMIT_WINDOW_MS=900000`
-- `GLOBAL_RATE_LIMIT_MAX_REQUESTS=300`
-- `AUTH_RATE_LIMIT_WINDOW_MS=600000`
-- `AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS=8`
-- `AUTH_REGISTER_RATE_LIMIT_MAX_ATTEMPTS=4`
-- `DB_POOL_MAX=10`
-- `DB_IDLE_TIMEOUT_MS=30000`
-- `DB_CONNECTION_TIMEOUT_MS=10000`
-- `DB_STATEMENT_TIMEOUT_MS=15000`
-- `DB_QUERY_TIMEOUT_MS=15000`
-- `TAX_RATE=0.075`
-- `FREE_SHIPPING_THRESHOLD=1200`
-- `EXCHANGE_RATE_PROVIDER=frankfurter`
-- `EXCHANGE_RATE_PROVIDER_BASE_URL=https://api.frankfurter.app`
-- `EXCHANGE_RATE_SYNC_ENABLED=true`
-- `EXCHANGE_RATE_SYNC_INTERVAL_MS=3600000`
-- `EXCHANGE_RATE_SYNC_TIMEOUT_MS=10000`
+## Environment Files
 
-### Optional media storage variables
+Local templates are provided here:
 
-- `MEDIA_STORAGE_PROVIDER=gcs`
-- `GCS_PROJECT_ID=your-google-cloud-project-id`
-- `GCS_BUCKET_NAME=your-google-cloud-storage-bucket`
-- `GCS_PUBLIC_BASE_URL=https://storage.googleapis.com/your-bucket`
+- [client/.env.example](../client/.env.example)
+- [server/.env.example](../server/.env.example)
 
-For Google Cloud credentials on Render, prefer one of these:
+## Verification Checklist
 
-- `GCS_CREDENTIALS_JSON`
-  Paste the full service-account JSON as a single secret value.
-- `GCS_CREDENTIALS_BASE64`
-  Base64-encoded service-account JSON.
-
-Keep `GCS_KEY_FILENAME` for local development or file-mounted environments only.
-
-In production, do not leave `SESSION_SECRET` on the development default. The API refuses to boot until a real secret is configured.
-
-## Frontend on Vercel
-
-### Files already prepared
-
-- `client/vercel.json`
-- `client/.env.example`
-
-### Vercel project settings
-
-- Framework preset: `Create React App`
-- Root directory: `client`
-- Build command: `npm run build`
-- Output directory: `build`
-
-### Required frontend environment variables
-
-Set this in Vercel:
-
-- `REACT_APP_API_BASE_URL=https://your-render-api.onrender.com`
-
-If the variable is empty in local development, CRA falls back to the local proxy in `client/package.json`.
-
-## Cross-service connection checklist
-
-1. Deploy the Render backend first and copy its public URL.
-2. Set `REACT_APP_API_BASE_URL` in Vercel to that Render URL.
-3. Set `CLIENT_ORIGIN` in Render to the Vercel production URL.
-4. Redeploy both services after updating env vars.
-5. Verify:
-   - backend health: `https://your-render-api.onrender.com/api/health`
-   - backend readiness: `https://your-render-api.onrender.com/api/ready`
-   - backend storage status: `https://your-render-api.onrender.com/api/storage/status`
-   - admin exchange-rate sync status: `https://your-render-api.onrender.com/api/admin/integrations/exchange-rates`
-   - frontend loads and displays API-backed homepage content
-   - customer registration and login succeed
-   - admin and customer dashboards load role-specific tabs and actions
-
-## Local env files
-
-Frontend:
-
-- copy `client/.env.example` to `client/.env`
-
-Backend:
-
-- copy `server/.env.example` to `server/.env`
-
-Recommended local values:
-
-- `client/.env`
-  `REACT_APP_API_BASE_URL=http://localhost:4000`
-- `server/.env`
-  `CLIENT_ORIGIN=http://localhost:3000`
-  `PGHOST=localhost`
-  `PGPORT=5432`
-  `PGUSER=postgres`
-  `PGPASSWORD=your_real_password_here`
-  `PGDATABASE=realcommerce`
-  `SESSION_SECRET=replace_me_for_local_dev`
-
-## Verification
-
-Before deploying, run:
+Run locally before deploying:
 
 ```bash
 npm run verify
 ```
+
+Then verify in the deployed environment:
+
+- `GET /api/health`
+- `GET /api/ready`
+- customer registration and login
+- catalog and product detail pages
+- product images in catalog, product detail, cart, checkout, and comparison UI
+- staff portal login and dashboard loading
+- order tracking against the deployed API

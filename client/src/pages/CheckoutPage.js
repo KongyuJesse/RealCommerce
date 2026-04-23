@@ -1,6 +1,7 @@
 import { ShieldIcon, CreditCardIcon } from '../components/MarketplaceIcons';
 import DashboardCard from '../components/DashboardCard';
 import EmptyState from '../components/EmptyState';
+import { applyImageFallback, DEFAULT_PRODUCT_IMAGE, getProductImageUrl } from '../lib';
 import { money } from '../lib/format';
 
 const CheckoutPage = ({
@@ -243,9 +244,10 @@ const CheckoutPage = ({
               {(cart?.items || []).map((item) => (
                 <div key={item.id} className="list-row" style={{ padding: '0.4rem 0', alignItems: 'center' }}>
                   <img
-                    src={item.image_url}
+                    src={getProductImageUrl(item, DEFAULT_PRODUCT_IMAGE)}
                     alt={item.name}
                     style={{ width: 40, height: 40, borderRadius: 'var(--radius-xs)', objectFit: 'contain', flexShrink: 0, background: 'var(--canvas-soft)' }}
+                    onError={(event) => applyImageFallback(event, DEFAULT_PRODUCT_IMAGE)}
                   />
                   <span>
                     <strong style={{ fontSize: 12 }}>{item.name}</strong>

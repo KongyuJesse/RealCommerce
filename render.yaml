@@ -7,6 +7,9 @@ services:
     startCommand: npm start
     autoDeploy: true
     healthCheckPath: /api/ready
+    initialDelaySeconds: 15
+    previews:
+      generation: automatic
     envVars:
       - key: NODE_ENV
         value: production
@@ -21,13 +24,22 @@ services:
       - key: LOG_FORMAT
         value: json
       - key: CLIENT_ORIGIN
-        sync: false
+        fromService:
+          type: web
+          name: realcommerce-web
+          envVarKey: PUBLIC_SITE_URL
       - key: CLIENT_ORIGIN_REGEX
+        sync: false
+      - key: PUBLIC_API_URL
         sync: false
       - key: DATABASE_URL
         sync: false
       - key: SESSION_SECRET
         sync: false
+      - key: SESSION_COOKIE_NAME
+        value: rc_session
+      - key: SESSION_TTL_DAYS
+        value: "14"
       - key: SESSION_COOKIE_SECURE
         value: "true"
       - key: SESSION_COOKIE_SAME_SITE
@@ -84,3 +96,40 @@ services:
         value: "900"
       - key: GCS_PUBLIC_BASE_URL
         sync: false
+      - key: EMAIL_PROVIDER
+        value: log
+      - key: EMAIL_FROM
+        value: noreply@realcommerce.com
+      - key: EMAIL_FROM_NAME
+        value: RealCommerce
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+  - type: web
+    name: realcommerce-web
+    runtime: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    autoDeploy: true
+    previews:
+      generation: automatic
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: PUBLIC_SITE_URL
+        sync: false
+      - key: REACT_APP_API_BASE_URL
+        fromService:
+          type: web
+          name: realcommerce-api
+          envVarKey: PUBLIC_API_URL

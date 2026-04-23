@@ -11,13 +11,11 @@ DROP TABLE IF EXISTS product_reviews CASCADE;
 DROP TABLE IF EXISTS wishlists CASCADE;
 DROP TABLE IF EXISTS cart_items CASCADE;
 DROP TABLE IF EXISTS carts CASCADE;
-DROP TABLE IF EXISTS seller_discount_campaigns CASCADE;
 DROP TABLE IF EXISTS promotions CASCADE;
 DROP TABLE IF EXISTS content_blocks CASCADE;
 DROP TABLE IF EXISTS shipping_methods_catalog CASCADE;
 DROP TABLE IF EXISTS payment_methods_catalog CASCADE;
 DROP TABLE IF EXISTS platform_settings CASCADE;
-DROP TABLE IF EXISTS seller_profiles CASCADE;
 DROP TABLE IF EXISTS customer_addresses CASCADE;
 DROP TABLE IF EXISTS user_sessions CASCADE;
 DROP TABLE IF EXISTS shipments CASCADE;
@@ -37,9 +35,11 @@ DROP TABLE IF EXISTS customers CASCADE;
 DROP TABLE IF EXISTS customer_tiers CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS admin_activity_logs CASCADE;
 DROP TABLE IF EXISTS external_service_syncs CASCADE;
 DROP TABLE IF EXISTS exchange_rates CASCADE;
 DROP TABLE IF EXISTS currencies CASCADE;
+DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 
 CREATE TABLE roles (
   id SERIAL PRIMARY KEY,
@@ -172,25 +172,8 @@ CREATE TABLE customers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE seller_profiles (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  store_name VARCHAR(120) NOT NULL,
-  slug VARCHAR(140) NOT NULL UNIQUE,
-  description TEXT,
-  support_email VARCHAR(150) NOT NULL,
-  phone VARCHAR(40),
-  city VARCHAR(80),
-  country VARCHAR(80),
-  payout_currency_code CHAR(3) NOT NULL REFERENCES currencies(code),
-  is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE products (
   id SERIAL PRIMARY KEY,
-  seller_profile_id INTEGER NOT NULL REFERENCES seller_profiles(id),
   category_id INTEGER NOT NULL REFERENCES categories(id),
   sku VARCHAR(50) NOT NULL UNIQUE,
   name VARCHAR(150) NOT NULL,
@@ -203,26 +186,6 @@ CREATE TABLE products (
     CHECK (status IN ('ACTIVE', 'DRAFT', 'ARCHIVED')),
   is_featured BOOLEAN NOT NULL DEFAULT FALSE,
   launch_month VARCHAR(30),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE seller_discount_campaigns (
-  id SERIAL PRIMARY KEY,
-  seller_profile_id INTEGER NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE,
-  name VARCHAR(120) NOT NULL,
-  code VARCHAR(40),
-  description TEXT,
-  discount_type VARCHAR(20) NOT NULL
-    CHECK (discount_type IN ('PERCENT', 'FIXED')),
-  discount_value NUMERIC(12, 2) NOT NULL CHECK (discount_value >= 0),
-  applies_to VARCHAR(20) NOT NULL DEFAULT 'ALL_PRODUCTS'
-    CHECK (applies_to IN ('ALL_PRODUCTS', 'CATEGORY', 'PRODUCT')),
-  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-  minimum_quantity INTEGER NOT NULL DEFAULT 1 CHECK (minimum_quantity > 0),
-  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  ends_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '30 days',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -382,17 +345,11 @@ CREATE TABLE orders (
   payment_method VARCHAR(40),
   shipping_method VARCHAR(40) NOT NULL DEFAULT 'standard',
   subtotal_amount NUMERIC(12, 2) NOT NULL CHECK (subtotal_amount >= 0),
-  seller_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (seller_discount_amount >= 0),
-  tier_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (tier_discount_amount >= 0),
-  promo_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (promo_discount_amount >= 0),
   discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
   shipping_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (shipping_amount >= 0),
   tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
   total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
   base_subtotal_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_subtotal_amount >= 0),
-  base_seller_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_seller_discount_amount >= 0),
-  base_tier_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_tier_discount_amount >= 0),
-  base_promo_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_promo_discount_amount >= 0),
   base_discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_discount_amount >= 0),
   base_shipping_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_shipping_amount >= 0),
   base_tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_tax_amount >= 0),
@@ -496,6 +453,30 @@ CREATE TABLE external_service_syncs (
   details JSONB NOT NULL DEFAULT '{}'::jsonb,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at TIMESTAMPTZ
+);
+
+CREATE TABLE password_reset_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash VARCHAR(255) NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+CREATE INDEX idx_password_reset_tokens_expires ON password_reset_tokens(expires_at);
+
+CREATE TABLE admin_activity_logs (
+  id SERIAL PRIMARY KEY,
+  actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  actor_role VARCHAR(50),
+  action VARCHAR(80) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(120),
+  summary TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE OR REPLACE FUNCTION refresh_customer_lifetime_and_tier(target_customer_id INTEGER)
@@ -754,11 +735,7 @@ WITH NO DATA;
 CREATE INDEX idx_users_role_id ON users(role_id);
 CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX idx_content_blocks_type_order ON content_blocks(block_type, sort_order);
-CREATE INDEX idx_seller_profiles_user_id ON seller_profiles(user_id);
-CREATE INDEX idx_seller_discount_campaigns_seller_id
-  ON seller_discount_campaigns(seller_profile_id, is_active, starts_at, ends_at);
 CREATE INDEX idx_products_category_id ON products(category_id);
-CREATE INDEX idx_products_seller_profile_id ON products(seller_profile_id);
 CREATE INDEX idx_products_status_featured_created ON products(status, is_featured, created_at DESC);
 CREATE INDEX idx_product_images_product_id
   ON product_images(product_id, is_primary DESC, display_order ASC);
@@ -789,6 +766,10 @@ CREATE INDEX idx_exchange_rates_lookup
   ON exchange_rates(base_currency_code, target_currency_code, effective_at DESC);
 CREATE INDEX idx_external_service_syncs_lookup
   ON external_service_syncs(service_name, started_at DESC, id DESC);
+CREATE INDEX idx_admin_activity_logs_created_at
+  ON admin_activity_logs(created_at DESC, id DESC);
+CREATE INDEX idx_admin_activity_logs_entity
+  ON admin_activity_logs(entity_type, entity_id, created_at DESC);
 CREATE UNIQUE INDEX idx_reorder_requests_open_unique
   ON reorder_requests(product_id, warehouse_id)
   WHERE status = 'OPEN';

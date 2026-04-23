@@ -1,12 +1,142 @@
-import { useState } from 'react';
-import { StarIcon, ShieldIcon, TruckIcon, MapPinIcon, CreditCardIcon } from '../components/MarketplaceIcons';
+import { useState, useEffect, useCallback } from 'react';
+import { StarIcon, ShieldIcon, TruckIcon, MapPinIcon, CreditCardIcon, CheckCircleIcon } from '../components/MarketplaceIcons';
 import DashboardCard from '../components/DashboardCard';
 import EmptyState from '../components/EmptyState';
+import { applyImageFallback, DEFAULT_PRODUCT_IMAGE, getGalleryImageUrl, getProductImageUrl } from '../lib';
 import { money } from '../lib/format';
 
-const ProductPage = ({ productState, productDetail, addToCart, onNavigate, session, saveToWishlist }) => {
+// ── Lightbox ──────────────────────────────────────────────────────────────
+const Lightbox = ({ images, activeIndex, onClose, onPrev, onNext }) => {
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') onPrev();
+      if (e.key === 'ArrowRight') onNext();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose, onPrev, onNext]);
+
+  return (
+    <div
+      className="lightbox-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image viewer"
+    >
+      <button className="lightbox-close" onClick={onClose} aria-label="Close image viewer">✕</button>
+      <button className="lightbox-prev" onClick={(e) => { e.stopPropagation(); onPrev(); }} aria-label="Previous image">‹</button>
+      <img
+        src={images[activeIndex]?.resolvedUrl || DEFAULT_PRODUCT_IMAGE}
+        alt={images[activeIndex]?.alt_text || 'Product image'}
+        className="lightbox-img"
+        onClick={(e) => e.stopPropagation()}
+        onError={(event) => applyImageFallback(event, DEFAULT_PRODUCT_IMAGE)}
+      />
+      <button className="lightbox-next" onClick={(e) => { e.stopPropagation(); onNext(); }} aria-label="Next image">›</button>
+      <div className="lightbox-counter">{activeIndex + 1} / {images.length}</div>
+    </div>
+  );
+};
+
+// ── Tracking Steps ─────────────────────────────────────────────────────────
+const SHIPMENT_STEPS = [
+  { key: 'PENDING',    label: 'Order Placed' },
+  { key: 'PICKING',   label: 'Processing' },
+  { key: 'PACKED',    label: 'Packed' },
+  { key: 'IN_TRANSIT',label: 'In Transit' },
+  { key: 'DELIVERED', label: 'Delivered' },
+];
+const STEP_ORDER = SHIPMENT_STEPS.map((s) => s.key);
+
+const TrackingSteps = ({ status }) => {
+  const currentIdx = STEP_ORDER.indexOf(status);
+  return (
+    <div className="tracking-steps" aria-label="Shipment progress">
+      {SHIPMENT_STEPS.map((step, i) => {
+        const done    = i < currentIdx;
+        const active  = i === currentIdx;
+        return (
+          <div key={step.key} className={`tracking-step ${done ? 'done' : active ? 'active' : 'pending'}`}>
+            <div className="tracking-step-dot" aria-hidden="true">
+              {done ? <CheckCircleIcon size={16} /> : <span>{i + 1}</span>}
+            </div>
+            <span className="tracking-step-label">{step.label}</span>
+            {i < SHIPMENT_STEPS.length - 1 && (
+              <div className={`tracking-step-line ${done ? 'done' : ''}`} aria-hidden="true" />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ── Recently Viewed (localStorage) ────────────────────────────────────────
+const RECENTLY_VIEWED_KEY = 'rc_recently_viewed';
+const MAX_RECENTLY_VIEWED = 8;
+
+const saveRecentlyViewed = (product) => {
+  try {
+    const existing = JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) || '[]');
+    const filtered = existing.filter((p) => p.id !== product.id);
+    const updated  = [{ id: product.id, slug: product.slug, name: product.name, unit_price: product.unit_price, currency_code: product.currency_code, image_url: product.image_url || product.images?.[0]?.url }, ...filtered].slice(0, MAX_RECENTLY_VIEWED);
+    localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(updated));
+  } catch { /* ignore */ }
+};
+
+const getRecentlyViewed = (excludeId) => {
+  try {
+    return JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY) || '[]').filter((p) => p.id !== excludeId);
+  } catch { return []; }
+};
+
+const ProductPage = ({ productState, productDetail, addToCart, onNavigate, session, saveToWishlist, apiRequest }) => {
   const [activeImage, setActiveImage] = useState(0);
   const [qty, setQty]                 = useState(1);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [reviewForm, setReviewForm]   = useState({ rating: '5', title: '', body: '' });
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [recentlyViewed, setRecentlyViewed]   = useState([]);
+  const [isHovering, setIsHovering]           = useState(false);
+
+  useEffect(() => {
+    if (productDetail) {
+      saveRecentlyViewed(productDetail);
+      setRecentlyViewed(getRecentlyViewed(productDetail.id));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productDetail?.id]);
+
+  useEffect(() => {
+    if (!productDetail?.images || productDetail.images.length <= 1 || isHovering || lightboxOpen) return;
+    
+    const interval = setInterval(() => {
+      setActiveImage((i) => (i + 1) % productDetail.images.length);
+    }, 3500);
+    
+    return () => clearInterval(interval);
+  }, [productDetail?.images, isHovering, lightboxOpen]);
+
+  const openLightbox = useCallback(() => setLightboxOpen(true), []);
+  const closeLightbox = useCallback(() => setLightboxOpen(false), []);
+  const prevImage = useCallback(() => setActiveImage((i) => (i - 1 + (productDetail?.images?.length || 1)) % (productDetail?.images?.length || 1)), [productDetail]);
+  const nextImage = useCallback(() => setActiveImage((i) => (i + 1) % (productDetail?.images?.length || 1)), [productDetail]);
+
+  const submitReview = async (e) => {
+    e.preventDefault();
+    if (!apiRequest) return;
+    try {
+      await apiRequest('/api/reviews', {
+        method: 'POST',
+        body: JSON.stringify({ productId: productDetail.id, rating: Number(reviewForm.rating), title: reviewForm.title, body: reviewForm.body }),
+      });
+      setReviewSubmitted(true);
+    } catch (err) {
+      alert(err.message || 'Could not submit review.');
+    }
+  };
 
   if (productState.status === 'loading') {
     return (
@@ -39,8 +169,11 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
     );
   }
 
-  const images        = productDetail.images || [];
-  const mainImage     = images[activeImage]?.url || productDetail.image_url;
+  const images        = (productDetail.images || []).map((image) => ({
+    ...image,
+    resolvedUrl: getGalleryImageUrl(image, DEFAULT_PRODUCT_IMAGE),
+  }));
+  const mainImage     = images[activeImage]?.resolvedUrl || getProductImageUrl(productDetail, DEFAULT_PRODUCT_IMAGE);
   const rating        = productDetail.average_rating || 0;
   const reviews       = productDetail.reviews || [];
   const filledStars   = Math.round(rating);
@@ -52,13 +185,31 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
 
   return (
     <section className="section-shell">
+      {lightboxOpen && images.length > 0 && (
+        <Lightbox
+          images={images}
+          activeIndex={activeImage}
+          onClose={closeLightbox}
+          onPrev={prevImage}
+          onNext={nextImage}
+        />
+      )}
       <div className="three-column-layout">
         {/* Image Gallery */}
         <div className="product-detail-media sticky-sidebar">
-          <div className="main-image-container">
+          <div 
+            className="main-image-container tilt-3d"
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
+          >
             <img
-              src={mainImage || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect width="200" height="200" fill="%23f3f4f6"/%3E%3C/svg%3E'}
+              key={activeImage}
+              className="anim-3d-fade"
+              src={mainImage || DEFAULT_PRODUCT_IMAGE}
               alt={productDetail.name}
+              onClick={images.length > 0 ? openLightbox : undefined}
+              style={{ cursor: images.length > 0 ? 'zoom-in' : 'default' }}
+              onError={(event) => applyImageFallback(event, DEFAULT_PRODUCT_IMAGE)}
             />
           </div>
           {images.length > 1 && (
@@ -66,10 +217,15 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
               {images.slice(0, 6).map((img, i) => (
                 <img
                   key={img.id || img.url}
-                  src={img.url}
+                  src={img.resolvedUrl}
                   alt={img.alt_text || productDetail.name}
                   className={i === activeImage ? 'is-active' : ''}
                   onClick={() => setActiveImage(i)}
+                  onKeyDown={(e) => e.key === 'Enter' && setActiveImage(i)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View image ${i + 1}`}
+                  onError={(event) => applyImageFallback(event, DEFAULT_PRODUCT_IMAGE)}
                 />
               ))}
             </div>
@@ -93,9 +249,7 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
           </nav>
 
           <h1 style={{ marginTop: '0.5rem' }}>{productDetail.name}</h1>
-          {productDetail.store_name && (
-            <p className="muted-copy">Sold by <strong>{productDetail.store_name}</strong></p>
-          )}
+          <p className="muted-copy" style={{ fontSize: 13 }}>Sold by <strong>RealCommerce</strong></p>
 
           {/* Rating */}
           {rating > 0 && (
@@ -213,6 +367,35 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
               </DashboardCard>
             </div>
           )}
+
+          {/* Write a Review */}
+          {session?.customerId && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <DashboardCard title="Write a Review" copy="Share your experience with this product.">
+                {reviewSubmitted ? (
+                  <p style={{ color: 'var(--success)', fontWeight: 600 }}>Thank you! Your review has been submitted.</p>
+                ) : (
+                  <form className="stack-form" onSubmit={submitReview}>
+                    <div className="form-group">
+                      <label>Rating</label>
+                      <select value={reviewForm.rating} onChange={(e) => setReviewForm((r) => ({ ...r, rating: e.target.value }))}>
+                        {[5,4,3,2,1].map((n) => <option key={n} value={n}>{n} star{n !== 1 ? 's' : ''}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Review title</label>
+                      <input value={reviewForm.title} onChange={(e) => setReviewForm((r) => ({ ...r, title: e.target.value }))} placeholder="Summarise your experience" required />
+                    </div>
+                    <div className="form-group">
+                      <label>Review</label>
+                      <textarea value={reviewForm.body} onChange={(e) => setReviewForm((r) => ({ ...r, body: e.target.value }))} placeholder="Tell others what you think" required />
+                    </div>
+                    <button className="accent-btn" type="submit">Submit review</button>
+                  </form>
+                )}
+              </DashboardCard>
+            </div>
+          )}
         </div>
 
         {/* Buy Box */}
@@ -261,7 +444,7 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
               <button
                 className="btn-cart"
                 type="button"
-                onClick={() => addToCart(productDetail.id)}
+                onClick={() => addToCart(productDetail.id, qty)}
                 disabled={!isInStock}
               >
                 Add to Cart
@@ -301,8 +484,34 @@ const ProductPage = ({ productState, productDetail, addToCart, onNavigate, sessi
           </div>
         </aside>
       </div>
+
+      {/* Recently Viewed */}
+      {recentlyViewed.length > 0 && (
+        <div style={{ marginTop: '2rem' }}>
+          <div className="section-header"><h2>Recently Viewed</h2></div>
+          <div className="product-grid">
+            {recentlyViewed.slice(0, 5).map((p) => (
+              <article key={p.id} className="product-card" onClick={() => onNavigate('product', p.slug)} style={{ cursor: 'pointer' }}>
+                <div className="product-card-media">
+                  <img
+                    src={getProductImageUrl(p, DEFAULT_PRODUCT_IMAGE)}
+                    alt={p.name}
+                    loading="lazy"
+                    onError={(event) => applyImageFallback(event, DEFAULT_PRODUCT_IMAGE)}
+                  />
+                </div>
+                <div className="product-card-body"><h3>{p.name}</h3></div>
+                <div className="product-card-footer">
+                  <div className="price-tag">{money(p.unit_price, p.currency_code)}</div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 };
 
+export { TrackingSteps };
 export default ProductPage;

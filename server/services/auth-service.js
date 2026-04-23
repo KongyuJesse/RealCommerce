@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const config = require('../config');
 const { query, withTransaction } = require('../db');
 const { assert, isEmail, isNonEmptyString, normalizeEmail } = require('../utils/validation');
+const { sendWelcomeEmail, sendPasswordResetEmail } = require('./email-service');
 
 const slugify = (value) =>
   String(value || '')
@@ -84,22 +85,18 @@ const getSessionUserByHash = async (tokenHash) => {
         u.full_name,
         u.email,
         u.is_active,
-        CASE WHEN r.name = 'seller' THEN 'merchandising_manager' ELSE r.name END AS role_name,
+        r.name AS role_name,
         c.id AS customer_id,
         c.first_name,
         c.last_name,
         c.city,
         c.country,
-        sp.id AS seller_profile_id,
-        sp.store_name,
-        sp.slug AS seller_slug,
         ct.name AS tier_name,
         ct.discount_rate
       FROM user_sessions us
       JOIN users u ON u.id = us.user_id
       JOIN roles r ON r.id = u.role_id
       LEFT JOIN customers c ON c.user_id = u.id AND r.name = 'customer'
-      LEFT JOIN seller_profiles sp ON sp.user_id = u.id
       LEFT JOIN customer_tiers ct ON ct.id = c.tier_id
       WHERE us.session_token_hash = $1 AND us.expires_at > NOW()
       LIMIT 1
@@ -163,10 +160,15 @@ const registerUser = async (payload) => {
       );
     }
 
-    return {
+    const result = {
       ...userInsert.rows[0],
       accountType,
     };
+
+    // Fire-and-forget welcome email — never block registration on email failure
+    sendWelcomeEmail({ to: email, fullName: normalizedFullName }).catch(() => {});
+
+    return result;
   });
 };
 
@@ -229,12 +231,87 @@ const loadCurrentUser = async (sessionToken) => {
   return user;
 };
 
+const changePassword = async ({ userId, currentPassword, newPassword }) => {
+  assert(isNonEmptyString(currentPassword), 'Current password is required.');
+  assertStrongPassword(newPassword);
+
+  const result = await query('SELECT password_hash FROM users WHERE id = $1 AND is_active = TRUE LIMIT 1', [userId]);
+  assert(result.rowCount > 0, 'User not found.', 404);
+  assert(verifyPassword(currentPassword, result.rows[0].password_hash), 'Current password is incorrect.', 401);
+
+  await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPassword(newPassword), userId]);
+  // Invalidate all sessions so the user must re-login on all devices
+  await query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+};
+
+const requestPasswordReset = async ({ email }) => {
+  const normalizedEmail = normalizeEmail(email);
+  assert(isEmail(normalizedEmail), 'A valid email is required.');
+
+  // Always respond with success to prevent email enumeration
+  const user = await query(
+    'SELECT id, full_name FROM users WHERE LOWER(email) = $1 AND is_active = TRUE LIMIT 1',
+    [normalizedEmail]
+  );
+
+  if (user.rowCount === 0) return { success: true };
+
+  const { id: userId, full_name: fullName } = user.rows[0];
+
+  // Invalidate any existing unused tokens for this user
+  await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL', [userId]);
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await query(
+    'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+    [userId, tokenHash, expiresAt]
+  );
+
+  const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+  const resetUrl = `${clientOrigin}/#/reset-password/${rawToken}`;
+
+  sendPasswordResetEmail({ to: normalizedEmail, fullName, resetUrl }).catch(() => {});
+
+  return { success: true };
+};
+
+const confirmPasswordReset = async ({ token, newPassword }) => {
+  assert(isNonEmptyString(token), 'Reset token is required.');
+  assertStrongPassword(newPassword);
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const result = await query(
+    `SELECT id, user_id FROM password_reset_tokens
+     WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+     LIMIT 1`,
+    [tokenHash]
+  );
+
+  assert(result.rowCount > 0, 'This reset link is invalid or has expired.', 400);
+
+  const { id: tokenId, user_id: userId } = result.rows[0];
+
+  await withTransaction(async (client) => {
+    await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPassword(newPassword), userId]);
+    await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [tokenId]);
+    await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+  });
+
+  return { success: true };
+};
+
 module.exports = {
   assertStrongPassword,
+  changePassword,
+  confirmPasswordReset,
   hashPassword,
   loginUser,
   logoutUser,
   loadCurrentUser,
   registerUser,
+  requestPasswordReset,
   splitFullName,
 };

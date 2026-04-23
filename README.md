@@ -1,125 +1,136 @@
 # RealCommerce
 
-RealCommerce is a split deployment workspace with:
+RealCommerce is a production-oriented single-seller commerce platform with a React storefront, an Express API, PostgreSQL-backed operations data, and role-based staff tooling.
 
-- `client/`: a React storefront intended for Vercel
-- `server/`: an Express + PostgreSQL API intended for Render
+## Highlights
 
-The repo is now set up for production-oriented delivery with:
+- Single-seller marketplace model with customer and staff experiences
+- React storefront in `client/`
+- Express 5 API in `server/`
+- PostgreSQL schema and seed data in `server/sql/`
+- Role-specific operational workflows for catalog, inventory, orders, finance, support, and shipping
+- Wishlist, checkout, order tracking, analytics, audit logging, and exchange-rate sync
+- Deployment-ready `render.yaml` for a static frontend plus API service
+- Frontend media resolution that works when the frontend and API are deployed on different domains
 
-- env-driven frontend/backend deployment config
-- professional API request logging with request IDs
-- hardened cookie, CORS, Helmet, and rate-limit defaults
-- role-aware admin and customer workspaces with separate dashboard capabilities
-- warehouse management, user management, reorder workflows, and wishlist support
-- hourly external exchange-rate synchronization with audit visibility
-- GitHub Actions CI for test, build, and server smoke checks
-- deployment-ready env templates in `client/.env.example` and `server/.env.example`
+## Stack
 
-## Local setup
+- Frontend: React 19, Create React App
+- Backend: Node.js, Express 5, PostgreSQL
+- Infra: Render Blueprint for the frontend and API, optional Vercel for the frontend
+- Storage: external image URLs or Google Cloud Storage signed uploads
 
-1. Install root dependencies with `npm install`.
-2. Install frontend dependencies with `npm install --prefix client`.
-3. Install backend dependencies with `npm install --prefix server`.
-4. Copy `client/.env.example` to `client/.env` if you want an explicit frontend API URL.
-5. Copy `server/.env.example` to `server/.env` and fill in your PostgreSQL settings.
-6. Initialize the database with `npm run db:init`.
-7. Start both apps with `npm run dev`.
+## Repository Layout
+
+- `client/` React storefront
+- `server/` Express API, database access, services, and SQL
+- `docs/deployment.md` deployment guide
+- `render.yaml` Render Blueprint for `realcommerce-web` and `realcommerce-api`
+
+## Local Development
+
+1. Install dependencies:
+   `npm install`
+   `npm run install:all`
+2. Copy env templates:
+   `client/.env.example` -> `client/.env`
+   `server/.env.example` -> `server/.env`
+3. Update `server/.env` with your PostgreSQL credentials and a local `SESSION_SECRET`.
+4. Create the database named in `PGDATABASE`.
+5. Initialize the schema and seed data:
+   `npm run db:init`
+6. Start both services:
+   `npm run dev`
 
 Local defaults:
 
-- frontend: `http://localhost:3000`
-- backend: `http://localhost:4000`
+- Frontend: `http://localhost:3000`
+- API: `http://localhost:4000`
+
+If `REACT_APP_API_BASE_URL` is empty, the CRA proxy in `client/package.json` is used in local development.
 
 ## Scripts
 
-Root:
+- `npm run dev` starts frontend and backend
+- `npm run build` builds the frontend
+- `npm run test` runs the frontend test suite
+- `npm run db:init` creates and seeds the database
+- `npm run verify` runs tests, frontend build, and server smoke validation
 
-- `npm run dev`
-- `npm run client`
-- `npm run server`
-- `npm run server:start`
-- `npm run build`
-- `npm run test`
-- `npm run db:init`
-- `npm run verify`
+## Demo Accounts
 
-Client:
+All seeded demo accounts use:
+`RealCommerce!2026`
 
-- `npm start`
-- `npm run build`
-- `npm run test:ci`
+Staff:
 
-Server:
+- `jesse@realcommerce.com` admin
+- `ada@realcommerce.com` inventory manager
+- `maya@realcommerce.com` order manager
+- `tunde@realcommerce.com` customer support
+- `amara@realcommerce.com` marketing manager
+- `chen@realcommerce.com` finance manager
+- `sarah@realcommerce.com` catalog manager
+- `david@realcommerce.com` shipping coordinator
 
-- `npm run dev`
-- `npm start`
-- `npm run db:init`
-- `npm run db:migrate:shipping`
-- `npm run smoke`
+Customers:
 
-## API highlights
-
-- `GET /api/health`
-- `GET /api/ready`
-- `GET /api/storage/status`
-- `GET /api/bootstrap`
-- `GET /api/homepage`
-- `GET /api/lookups`
-- `GET /api/categories`
-- `GET /api/products`
-- `GET /api/products/:slug`
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/session`
-- `GET /api/cart`
-- `POST /api/cart/items`
-- `PATCH /api/cart/items/:itemId`
-- `DELETE /api/cart/items/:itemId`
-- `POST /api/checkout/quote`
-- `POST /api/checkout/complete`
-- `GET /api/dashboard/customer`
-- `GET /api/dashboard/admin`
-- `GET /api/dashboard/operations`
-- `POST /api/account/addresses`
-- `PATCH /api/account/profile`
-- `DELETE /api/account/addresses/:id`
-- `POST /api/reviews`
-- `GET /api/orders/:orderNumber`
-- `GET /api/tracking/shipments/:trackingNumber`
-- `GET /api/analytics`
-- `GET /api/analytics/inventory-health`
-- `GET /api/wishlist`
-- `POST /api/wishlist`
-- `DELETE /api/wishlist/:productId`
-- `POST /api/wishlist/:productId/move-to-cart`
-- `POST /api/admin/products`
-- `POST /api/admin/discounts`
-- `GET /api/admin/users`
-- `POST /api/admin/users`
-- `PATCH /api/admin/users/:userId`
-- `GET /api/admin/warehouses`
-- `POST /api/admin/warehouses`
-- `PATCH /api/admin/warehouses/:warehouseId`
-- `POST /api/admin/reorder-requests`
-- `PATCH /api/admin/reorder-requests/:requestId/status`
-- `GET /api/admin/integrations/exchange-rates`
-- `POST /api/admin/integrations/exchange-rates/sync`
-- `PATCH /api/admin/orders/:orderId/status`
-- `PATCH /api/admin/shipments/:shipmentId/status`
-- `POST /api/admin/shipments/:shipmentId/events`
-- `PUT /api/admin/platform-settings`
-- `POST /api/uploads/product-images/sign`
-- `POST /api/uploads/product-images/:imageId/complete`
-
-## Authentication notes
-
-- Self-service registration is currently customer-only.
-- Order tracking requires an authenticated session.
-- Admin, merchandising, and operations routes are role-protected on the API.
-- Customer sessions now receive personalized dashboard data, wishlist preview, loyalty progress, and recommended products.
+- `lionel@bluehorizon.com`
+- `sofia@vitaretail.com`
 
 ## Deployment
 
-Deployment steps and required environment variables are documented in [docs/deployment.md](docs/deployment.md).
+### Render Blueprint
+
+The included [render.yaml](render.yaml) provisions:
+
+- `realcommerce-api` as a Node web service
+- `realcommerce-web` as a static frontend
+
+Set these required values in Render during Blueprint setup:
+
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `PUBLIC_API_URL`
+- `PUBLIC_SITE_URL`
+
+Optional but commonly needed:
+
+- `CLIENT_ORIGIN_REGEX`
+- `GCS_*` media storage variables
+- `RESEND_API_KEY` or `SMTP_*` email variables
+
+The static site receives `REACT_APP_API_BASE_URL` from the API service's `PUBLIC_API_URL` env var. The API receives `CLIENT_ORIGIN` from the frontend service's `PUBLIC_SITE_URL` env var.
+
+### Vercel + Render
+
+If you prefer Vercel for the frontend:
+
+- deploy `client/` with [client/vercel.json](client/vercel.json)
+- set `REACT_APP_API_BASE_URL` to your API origin
+- set API `CLIENT_ORIGIN` to the deployed frontend origin
+
+More detail lives in [docs/deployment.md](docs/deployment.md).
+
+## Images and Media
+
+- Product cards, product detail galleries, cart items, checkout items, and comparison views now resolve API-backed media against `REACT_APP_API_BASE_URL`.
+- Broken or missing product images fall back to [client/public/images/placeholder.svg](client/public/images/placeholder.svg).
+- Catalog managers can still attach external image URLs immediately.
+- Google Cloud Storage uploads remain supported through signed upload URLs when storage variables are configured.
+
+## Verification
+
+Before pushing deployment changes, run:
+
+```bash
+npm run verify
+```
+
+Recommended smoke checks after deployment:
+
+- `GET /api/health`
+- `GET /api/ready`
+- browse catalog and product detail pages
+- confirm product images render in catalog, cart, checkout, and comparison views
+- confirm staff portal and order tracking work against the deployed API origin

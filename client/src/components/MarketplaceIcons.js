@@ -213,17 +213,115 @@ function ZapIcon({ size = 16 }) {
   );
 }
 
+function XIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BellIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FilterIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+function DownloadIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="7 10 12 15 17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UserIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function UsersIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DollarSignIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <line x1="12" y1="1" x2="12" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function BarChartIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <line x1="12" y1="20" x2="12" y2="10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="18" y1="20" x2="18" y2="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="6" y1="20" x2="6" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HeadphonesIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <path d="M3 18v-6a9 9 0 0118 0v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ size = 16 }) {
+  return (
+    <svg {...iconProps(size)}>
+      <polyline points="9 18 15 12 9 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
 export {
   AlertCircleIcon,
+  BarChartIcon,
+  BellIcon,
   CaretDownIcon,
   CartIcon,
   ChartBarIcon,
   CheckCircleIcon,
+  ChevronRightIcon,
   CreditCardIcon,
+  DollarSignIcon,
+  DownloadIcon,
   EyeIcon,
   EyeOffIcon,
+  FilterIcon,
   FlagIcon,
   GlobeIcon,
+  HeadphonesIcon,
   HeartIcon,
   LockIcon,
   MapPinIcon,
@@ -234,5 +332,8 @@ export {
   ShieldIcon,
   StarIcon,
   TruckIcon,
+  UserIcon,
+  UsersIcon,
+  XIcon,
   ZapIcon,
 };

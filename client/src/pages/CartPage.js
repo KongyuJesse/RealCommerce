@@ -1,161 +1,169 @@
 import EmptyState from '../components/EmptyState';
+import { applyImageFallback, DEFAULT_PRODUCT_IMAGE, getProductImageUrl } from '../lib';
 import { money } from '../lib/format';
+import { ShieldIcon, TruckIcon, RefreshIcon } from '../components/MarketplaceIcons';
+import usePriceConverter from '../lib/usePriceConverter';
 
 const CartPage = ({ session, cart, quote, onNavigate, updateCartQuantity, removeCartItem }) => {
-  if (!session?.customerId) {
+  const { convert, currencyCode } = usePriceConverter();
+
+  if (!session) {
     return (
       <EmptyState
         title="Sign in to view your cart"
         copy="Sign in with a customer account to manage your cart and proceed to checkout."
-        action={
-          <button className="accent-btn" type="button" onClick={() => onNavigate('login')}>
-            Sign in
-          </button>
-        }
+        action={<button className="accent-btn" type="button" onClick={() => onNavigate('login')}>Sign in</button>}
+      />
+    );
+  }
+
+  if (session && !session.customerId) {
+    return (
+      <EmptyState
+        title="Cart is not available for staff accounts"
+        copy="The shopping cart is only available for customer accounts."
+        action={<button className="accent-btn" type="button" onClick={() => onNavigate('home')}>Back to Home</button>}
       />
     );
   }
 
   if (!cart?.items?.length) {
     return (
-      <EmptyState
-        title="Your cart is empty"
-        copy="Browse our catalog and add items to get started."
-        action={
-          <button className="accent-btn" type="button" onClick={() => onNavigate('catalog')}>
+      <section className="section-shell">
+        <div className="cart-empty-wrap">
+          <div className="cart-empty-icon" aria-hidden="true">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+              <circle cx="40" cy="40" r="40" fill="#f3f4f6"/>
+              <path d="M20 22h4l6 28h26l4-18H30" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+              <circle cx="34" cy="56" r="3" fill="#9ca3af"/>
+              <circle cx="52" cy="56" r="3" fill="#9ca3af"/>
+            </svg>
+          </div>
+          <h1>Your cart is empty</h1>
+          <p>Looks like you haven't added anything yet. Browse our catalog to find something you'll love.</p>
+          <button className="accent-btn" type="button" onClick={() => onNavigate('catalog')} style={{ padding: '11px 36px' }}>
             Continue shopping
           </button>
-        }
-      />
+        </div>
+      </section>
     );
   }
 
-  const displayTotal = quote?.totalAmount ?? cart?.subtotal ?? 0;
-  const currencyCode = cart.currency_code || 'USD';
+  // Cart amounts come from server already in cart.currency_code.
+  // We convert to the user's active display currency for consistency.
+  const cartCurrency  = cart.currency_code || 'USD';
+  const itemCount     = cart.itemCount || cart.items.length;
+  const subtotal      = convert(cart.subtotal || 0, cartCurrency);
+  const displayTotal  = quote?.totalAmount
+    ? convert(quote.totalAmount, quote.orderCurrencyCode || cartCurrency)
+    : subtotal;
 
   return (
     <section className="section-shell">
-      <div className="checkout-shell">
-        {/* Cart Items */}
-        <div>
-          <div className="panel-card">
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 400 }}>Shopping Cart</h1>
-              <span className="muted-copy">Price</span>
-            </div>
+      <div className="cart-layout">
+        {/* Left — items */}
+        <div className="cart-main">
+          <div className="cart-header-row">
+            <h1>Shopping Cart</h1>
+            <span className="muted-copy">Price</span>
+          </div>
 
-            <div className="cart-list">
-              {cart.items.map((item) => (
-                <article className="cart-item" key={item.id}>
-                  <img
-                    src={item.image_url || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23f3f4f6"/%3E%3C/svg%3E'}
-                    alt={item.name}
-                  />
-                  <div className="cart-item-copy">
-                    <button
-                      className="inline-link product-link"
-                      type="button"
-                      onClick={() => onNavigate('product', item.slug)}
-                      style={{ fontSize: 15 }}
-                    >
+          <div className="cart-items-list">
+            {cart.items.map((item, i) => {
+              const itemCurrency = item.currency_code || cartCurrency;
+              const lineTotal    = convert(item.line_total || 0, itemCurrency);
+              const origTotal    = convert(item.original_line_total || 0, itemCurrency);
+              const saving       = origTotal > lineTotal ? origTotal - lineTotal : 0;
+
+              return (
+                <article className="cart-item-row" key={item.id} style={{ animationDelay: `${i * 60}ms` }}>
+                  <div
+                    className="cart-item-img-wrap"
+                    onClick={() => onNavigate('product', item.slug)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && onNavigate('product', item.slug)}
+                  >
+                    <img
+                      src={getProductImageUrl(item, DEFAULT_PRODUCT_IMAGE)}
+                      alt={item.name}
+                      loading="lazy"
+                      onError={(event) => applyImageFallback(event, DEFAULT_PRODUCT_IMAGE)}
+                    />
+                  </div>
+
+                  <div className="cart-item-details">
+                    <button className="cart-item-name" type="button" onClick={() => onNavigate('product', item.slug)}>
                       {item.name}
                     </button>
-                    {item.short_description && <p>{item.short_description}</p>}
-                    <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>In Stock</span>
-                    <p style={{ fontSize: 12, color: 'var(--success)' }}>FREE delivery on this order</p>
+                    {item.short_description && (
+                      <p className="cart-item-desc">{item.short_description}</p>
+                    )}
+                    <div className="cart-item-badges">
+                      <span className="cart-badge-stock">In Stock</span>
+                      <span className="cart-badge-ship">
+                        <TruckIcon size={11} /> FREE delivery
+                      </span>
+                    </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                    <div className="cart-item-actions">
                       <div className="quantity-stepper">
-                        <button
-                          type="button"
-                          onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity - 1))}
-                          aria-label="Decrease quantity"
-                        >−</button>
-                        <span aria-label={`Quantity: ${item.quantity}`}>{item.quantity}</span>
-                        <button
-                          type="button"
-                          onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                          aria-label="Increase quantity"
-                        >+</button>
+                        <button type="button" onClick={() => updateCartQuantity(item.id, Math.max(1, item.quantity - 1))} aria-label="Decrease">−</button>
+                        <span>{item.quantity}</span>
+                        <button type="button" onClick={() => updateCartQuantity(item.id, item.quantity + 1)} aria-label="Increase">+</button>
                       </div>
-                      <span style={{ color: 'var(--border-strong)' }}>|</span>
-                      <button
-                        className="inline-link"
-                        type="button"
-                        onClick={() => removeCartItem(item.id)}
-                        style={{ fontSize: 13, color: 'var(--link)' }}
-                      >
-                        Delete
-                      </button>
-                      <span style={{ color: 'var(--border-strong)' }}>|</span>
-                      <button
-                        className="inline-link"
-                        type="button"
-                        onClick={() => onNavigate('product', item.slug)}
-                        style={{ fontSize: 13 }}
-                      >
-                        View item
-                      </button>
+                      <span className="cart-action-sep" aria-hidden="true">|</span>
+                      <button className="cart-action-link" type="button" onClick={() => removeCartItem(item.id)}>Delete</button>
+                      <span className="cart-action-sep" aria-hidden="true">|</span>
+                      <button className="cart-action-link" type="button" onClick={() => onNavigate('product', item.slug)}>View item</button>
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    {item.original_line_total > item.line_total && (
-                      <div className="price-discount" style={{ fontSize: 12, marginBottom: 2 }}>
-                        Save {money(item.original_line_total - item.line_total, item.currency_code)}
-                      </div>
+                  <div className="cart-item-price">
+                    {saving > 0 && (
+                      <div className="cart-item-saving">Save {money(saving, currencyCode)}</div>
                     )}
-                    <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--price-color)', whiteSpace: 'nowrap' }}>
-                      {money(item.line_total, item.currency_code)}
-                    </strong>
+                    <strong>{money(lineTotal, currencyCode)}</strong>
                   </div>
                 </article>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            <div style={{ textAlign: 'right', fontSize: 17, paddingTop: '1rem' }}>
-              {cart.sellerDiscountTotal > 0 && (
-                <div className="price-discount" style={{ fontSize: 13, marginBottom: 4 }}>
-                  Seller savings: -{money(cart.sellerDiscountTotal, currencyCode)}
-                </div>
-              )}
-              Subtotal ({cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}):&nbsp;
-              <strong style={{ fontSize: 19 }}>{money(cart.subtotal, currencyCode)}</strong>
-            </div>
+          <div className="cart-subtotal-row">
+            Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'}):&nbsp;
+            <strong>{money(subtotal, currencyCode)}</strong>
           </div>
         </div>
 
-        {/* Sidebar Summary */}
-        <aside className="checkout-summary" aria-label="Order summary">
-          <div style={{ marginBottom: '0.5rem', fontSize: 14, color: 'var(--success)', fontWeight: 600 }}>
-            Your order qualifies for FREE delivery
+        {/* Right — summary */}
+        <aside className="cart-summary-panel" aria-label="Order summary">
+          <div className="cart-summary-free-ship">
+            <TruckIcon size={14} />
+            Your order qualifies for <strong>FREE delivery</strong>
           </div>
-          <div style={{ marginBottom: '1rem', fontSize: 15 }}>
-            Subtotal ({cart.itemCount} {cart.itemCount === 1 ? 'item' : 'items'}):&nbsp;
-            <strong style={{ fontSize: 18 }}>{money(displayTotal, currencyCode)}</strong>
+
+          <div className="cart-summary-total">
+            Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'}):&nbsp;
+            <strong>{money(displayTotal, currencyCode)}</strong>
           </div>
-          <button
-            className="accent-btn"
-            type="button"
-            onClick={() => onNavigate('checkout')}
-            style={{ width: '100%', marginBottom: '0.5rem', padding: '10px' }}
-          >
+
+          <button className="cart-checkout-btn" type="button" onClick={() => onNavigate('checkout')}>
             Proceed to checkout
           </button>
-          <button
-            className="ghost-btn"
-            type="button"
-            onClick={() => onNavigate('catalog')}
-            style={{ width: '100%' }}
-          >
+
+          <button className="cart-continue-btn" type="button" onClick={() => onNavigate('catalog')}>
             Continue shopping
           </button>
 
-          <div className="divider" />
-
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
-            By proceeding, you agree to RealCommerce's conditions of use and privacy notice.
+          <div className="cart-summary-trust">
+            <div><ShieldIcon size={12} /> Encrypted &amp; secure</div>
+            <div><RefreshIcon size={12} /> 30-day returns</div>
           </div>
+
+          <p className="cart-summary-legal">
+            By proceeding, you agree to RealCommerce's conditions of use and privacy notice.
+          </p>
         </aside>
       </div>
     </section>

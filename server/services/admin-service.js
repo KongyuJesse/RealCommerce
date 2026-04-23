@@ -1,39 +1,13 @@
 const { query, withTransaction } = require('../db');
 const { assert, asNumber, isEmail, isNonEmptyString, normalizeEmail } = require('../utils/validation');
+const { normalizeText, normalizeNullableText, normalizeBoolean, mapMoneyRow } = require('../utils/format');
+const { recordAdminActivity } = require('./activity-log-service');
 const { assertStrongPassword, hashPassword, splitFullName } = require('./auth-service');
 
-const MANAGED_ROLE_NAMES = ['admin', 'operations_manager', 'merchandising_manager', 'customer'];
+const MANAGED_ROLE_NAMES = ['admin', 'inventory_manager', 'order_manager', 'customer_support', 'marketing_manager', 'finance_manager', 'catalog_manager', 'shipping_coordinator', 'customer'];
 const REORDER_STATUSES = ['OPEN', 'ORDERED', 'RECEIVED', 'CANCELLED'];
 
-const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
-
-const normalizeNullableText = (value) => {
-  const normalized = normalizeText(value);
-  return normalized || null;
-};
-
 const normalizeRoleName = (value) => normalizeText(value).toLowerCase();
-
-const mapMoneyRow = (row, fields) =>
-  fields.reduce(
-    (accumulator, field) => ({
-      ...accumulator,
-      [field]: Number(Number(row[field] || 0).toFixed(2)),
-    }),
-    row
-  );
-
-const normalizeBoolean = (value, fallback = false) => {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
-};
 
 const getManagedUserById = async (userId, client = { query }) => {
   const result = await client.query(
@@ -224,7 +198,7 @@ const listManagedUsers = async ({ search = '', roleName = '', limit = 50 } = {})
   return result.rows.map((row) => mapMoneyRow(row, ['lifetime_value']));
 };
 
-const createManagedUser = async (payload = {}) =>
+const createManagedUser = async ({ actor = null, payload = {} } = {}) =>
   withTransaction(async (client) => {
     const fullName = normalizeText(payload.fullName);
     const email = normalizeEmail(payload.email);
@@ -254,10 +228,25 @@ const createManagedUser = async (payload = {}) =>
       });
     }
 
+    await recordAdminActivity({
+      client,
+      actorUserId: actor?.user_id,
+      actorRole: actor?.role_name,
+      action: 'user.created',
+      entityType: 'user',
+      entityId: inserted.rows[0].id,
+      summary: `Created ${role.name} account for ${fullName}.`,
+      metadata: {
+        email,
+        roleName: role.name,
+        isActive: normalizeBoolean(payload.isActive, true),
+      },
+    });
+
     return getManagedUserById(inserted.rows[0].id, client);
   });
 
-const updateManagedUser = async ({ userId, payload = {} }) =>
+const updateManagedUser = async ({ actor = null, userId, payload = {} }) =>
   withTransaction(async (client) => {
     const existingUser = await client.query(
       `
@@ -315,6 +304,21 @@ const updateManagedUser = async ({ userId, payload = {} }) =>
       await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
     }
 
+    await recordAdminActivity({
+      client,
+      actorUserId: actor?.user_id,
+      actorRole: actor?.role_name,
+      action: 'user.updated',
+      entityType: 'user',
+      entityId: userId,
+      summary: `Updated ${resolvedRoleName} account for ${fullName}.`,
+      metadata: {
+        email,
+        roleName: resolvedRoleName,
+        isActive,
+      },
+    });
+
     return getManagedUserById(userId, client);
   });
 
@@ -358,7 +362,7 @@ const listWarehouses = async () => {
   }));
 };
 
-const createWarehouse = async (payload = {}) =>
+const createWarehouse = async ({ actor = null, payload = {} } = {}) =>
   withTransaction(async (client) => {
     const code = normalizeText(payload.code).toUpperCase();
     const name = normalizeText(payload.name);
@@ -381,10 +385,28 @@ const createWarehouse = async (payload = {}) =>
       [code, name, city, country, capacityUnits, normalizeBoolean(payload.isActive, true)]
     );
 
-    return getWarehouseById(inserted.rows[0].id, client);
+    const warehouse = await getWarehouseById(inserted.rows[0].id, client);
+
+    await recordAdminActivity({
+      client,
+      actorUserId: actor?.user_id,
+      actorRole: actor?.role_name,
+      action: 'warehouse.created',
+      entityType: 'warehouse',
+      entityId: inserted.rows[0].id,
+      summary: `Created warehouse ${name} (${code}).`,
+      metadata: {
+        city,
+        country,
+        capacityUnits,
+        isActive: normalizeBoolean(payload.isActive, true),
+      },
+    });
+
+    return warehouse;
   });
 
-const updateWarehouse = async ({ warehouseId, payload = {} }) =>
+const updateWarehouse = async ({ actor = null, warehouseId, payload = {} }) =>
   withTransaction(async (client) => {
     const existing = await client.query('SELECT id FROM warehouses WHERE id = $1 LIMIT 1', [warehouseId]);
     assert(existing.rowCount > 0, 'Warehouse not found.', 404);
@@ -442,10 +464,25 @@ const updateWarehouse = async ({ warehouseId, payload = {} }) =>
       values
     );
 
-    return getWarehouseById(warehouseId, client);
+    const warehouse = await getWarehouseById(warehouseId, client);
+
+    await recordAdminActivity({
+      client,
+      actorUserId: actor?.user_id,
+      actorRole: actor?.role_name,
+      action: 'warehouse.updated',
+      entityType: 'warehouse',
+      entityId: warehouseId,
+      summary: `Updated warehouse ${warehouse?.name || warehouseId}.`,
+      metadata: {
+        updatedFields: Object.keys(payload || {}),
+      },
+    });
+
+    return warehouse;
   });
 
-const createManualReorderRequest = async (payload = {}) =>
+const createManualReorderRequest = async ({ actor = null, payload = {} } = {}) =>
   withTransaction(async (client) => {
     const productId = asNumber(payload.productId, NaN);
     const warehouseId = asNumber(payload.warehouseId, NaN);
@@ -518,7 +555,22 @@ const createManualReorderRequest = async (payload = {}) =>
           LIMIT 1
         `,
         [existing.rows[0].id]
-      ).then((result) => result.rows[0]);
+      ).then(async (result) => {
+        await recordAdminActivity({
+          client,
+          actorUserId: actor?.user_id,
+          actorRole: actor?.role_name,
+          action: 'reorder.request.reused',
+          entityType: 'reorder_request',
+          entityId: existing.rows[0].id,
+          summary: `Reused existing reorder request for ${position.product_name} at ${position.warehouse_name}.`,
+          metadata: {
+            productId,
+            warehouseId,
+          },
+        });
+        return result.rows[0];
+      });
     }
 
     const inserted = await client.query(
@@ -568,14 +620,31 @@ const createManualReorderRequest = async (payload = {}) =>
         LIMIT 1
       `,
       [inserted.rows[0].id]
-    ).then((result) => result.rows[0]);
+    ).then(async (result) => {
+      await recordAdminActivity({
+        client,
+        actorUserId: actor?.user_id,
+        actorRole: actor?.role_name,
+        action: 'reorder.request.created',
+        entityType: 'reorder_request',
+        entityId: inserted.rows[0].id,
+        summary: `Created reorder request for ${position.product_name} at ${position.warehouse_name}.`,
+        metadata: {
+          productId,
+          warehouseId,
+          quantityRequested,
+        },
+      });
+      return result.rows[0];
+    });
   });
 
-const updateReorderRequestStatus = async ({ requestId, payload = {} }) => {
+const updateReorderRequestStatus = async ({ actor = null, requestId, payload = {} }) =>
+  withTransaction(async (client) => {
   const normalizedStatus = normalizeText(payload.status).toUpperCase();
   assert(REORDER_STATUSES.includes(normalizedStatus), 'Unsupported reorder request status.');
 
-  const result = await query(
+  const result = await client.query(
     `
       UPDATE reorder_requests
       SET
@@ -589,8 +658,21 @@ const updateReorderRequestStatus = async ({ requestId, payload = {} }) => {
   );
 
   assert(result.rowCount > 0, 'Reorder request not found.', 404);
+  await recordAdminActivity({
+    client,
+    actorUserId: actor?.user_id,
+    actorRole: actor?.role_name,
+    action: 'reorder.request.updated',
+    entityType: 'reorder_request',
+    entityId: requestId,
+    summary: `Moved reorder request ${requestId} to ${normalizedStatus}.`,
+    metadata: {
+      status: normalizedStatus,
+      note: normalizeNullableText(payload.note),
+    },
+  });
   return result.rows[0];
-};
+});
 
 module.exports = {
   createManagedUser,

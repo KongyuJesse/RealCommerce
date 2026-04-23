@@ -2,6 +2,7 @@ import { startTransition, useDeferredValue, useEffect, useState } from 'react';
 import './App.css';
 import fallbackData from './fallbackData';
 import { ErrorBoundary, ProductComposer, SiteFooter, SiteHeader, ToastProvider } from './components';
+import { CurrencyProvider } from './lib';
 import {
   AccessPage,
   AnalyticsPage,
@@ -9,12 +10,19 @@ import {
   CatalogPage,
   CheckoutPage,
   DashboardPage,
+  ForgotPasswordPage,
+  HelpCenterPage,
   HomePage,
   InventoryPage,
   LoginPage,
+  NotFoundPage,
+  OrderConfirmedPage,
   OrderPage,
   ProductPage,
   RegisterPage,
+  ResetPasswordPage,
+  StaffPortalPage,
+  TrackOrderPage,
   WishlistPage,
 } from './pages';
 import {
@@ -46,8 +54,14 @@ function App() {
   const [storageStatus, setStorageStatus] = useState(defaultStorageStatus);
   const [productState, setProductState] = useState({ status: 'idle', data: null });
   const [orderState, setOrderState] = useState({ status: 'idle', data: null });
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [catalogState, setCatalogState] = useState({ status: 'ready', data: [] });
   const [catalogSort, setCatalogSort] = useState('featured');
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [checkoutForm, setCheckoutForm] = useState(createInitialCheckoutForm);
   const [quote, setQuote] = useState(null);
@@ -79,13 +93,15 @@ function App() {
   const operationsDashboard = data.operationsDashboard || null;
   const productDetail = productState.data;
   const orderDetail = orderState.data;
+  // Preferred currency from geo-detection (server-resolved)
+  const preferredCurrencyCode = data.preferredCurrencyCode || 'USD';
 
   // Fetch analytics when navigating to analytics or inventory
   useEffect(() => {
     const isAnalyticsPage  = route.page === 'analytics';
     const isInventoryPage  = route.page === 'inventory';
     if (!isAnalyticsPage && !isInventoryPage) return;
-    const isAdmin = ['admin', 'operations_manager', 'merchandising_manager'].includes(session?.roleName);
+    const isAdmin = ['admin', 'inventory_manager', 'order_manager', 'catalog_manager', 'marketing_manager', 'finance_manager', 'shipping_coordinator', 'customer_support'].includes(session?.roleName);
     if (!isAdmin) return;
 
     if (isAnalyticsPage) {
@@ -124,11 +140,18 @@ function App() {
     if (deferredSearch.trim()) queryParams.set('q', deferredSearch.trim());
     if (route.page === 'catalog' && route.slug) queryParams.set('category', route.slug);
     if (catalogSort) queryParams.set('sort', catalogSort);
+    if (minPrice) queryParams.set('minPrice', minPrice);
+    if (maxPrice) queryParams.set('maxPrice', maxPrice);
+    if (inStockOnly) queryParams.set('inStock', 'true');
+    queryParams.set('limit', '24');
+    queryParams.set('offset', String((catalogPage - 1) * 24));
 
     apiRequest(`/api/products?${queryParams.toString()}`)
       .then((payload) => {
         if (active) {
-          setCatalogState({ status: 'ready', data: payload });
+          const items = Array.isArray(payload) ? payload : (payload?.items || payload || []);
+          setCatalogState({ status: 'ready', data: items });
+          if (payload?.total) setCatalogTotal(payload.total);
         }
       })
       .catch(() => {
@@ -137,10 +160,8 @@ function App() {
         }
       });
 
-    return () => {
-      active = false;
-    };
-  }, [route.page, route.slug, deferredSearch, catalogSort]);
+    return () => { active = false; };
+  }, [route.page, route.slug, deferredSearch, catalogSort, catalogPage, minPrice, maxPrice, inStockOnly]);
 
   const goToRoute = (page, slug = '', detail = '') => {
     const segments = [page, slug, detail].filter(Boolean);
@@ -210,16 +231,16 @@ function App() {
   }, [session, checkoutForm.shippingAddress.recipientName]);
 
   useEffect(() => {
-    const preferredCurrencyCode = quote?.orderCurrencyCode || cart?.currency_code || null;
-    if (!preferredCurrencyCode || checkoutForm.currencyCode === preferredCurrencyCode) {
+    const preferredCode = quote?.orderCurrencyCode || cart?.currency_code || preferredCurrencyCode || null;
+    if (!preferredCode || checkoutForm.currencyCode === preferredCode) {
       return;
     }
 
     setCheckoutForm((current) => ({
       ...current,
-      currencyCode: preferredCurrencyCode,
+      currencyCode: preferredCode,
     }));
-  }, [quote?.orderCurrencyCode, cart?.currency_code, checkoutForm.currencyCode]);
+  }, [quote?.orderCurrencyCode, cart?.currency_code, preferredCurrencyCode, checkoutForm.currencyCode]);
 
   useEffect(() => {
     const settings = adminDashboard?.platformSettings || [];
@@ -374,7 +395,7 @@ function App() {
     }
   };
 
-  const addToCart = async (productId) => {
+  const addToCart = async (productId, quantity = 1) => {
     await withBusy(async () => {
       if (!session?.customerId) {
         setPendingAction({ type: 'addToCart', productId });
@@ -384,7 +405,7 @@ function App() {
 
       await apiRequest('/api/cart/items', {
         method: 'POST',
-        body: JSON.stringify({ productId, quantity: 1 }),
+        body: JSON.stringify({ productId, quantity }),
       });
       await refreshBootstrap();
     }, 'Cart updated.');
@@ -411,7 +432,7 @@ function App() {
     await withBusy(async () => {
       const payload = await apiRequest('/api/checkout/quote', {
         method: 'POST',
-        body: JSON.stringify(checkoutForm),
+        body: JSON.stringify({ ...checkoutForm, currencyCode: checkoutForm.currencyCode || preferredCurrencyCode }),
       });
       setQuote(payload);
     }, 'Checkout quote refreshed.');
@@ -434,6 +455,7 @@ function App() {
       setData(payload);
       setQuote(payload.checkout || null);
 
+      // Handle pending actions first
       if (pendingAction?.type === 'addToCart' && payload.session?.customerId) {
         try {
           await apiRequest('/api/cart/items', {
@@ -444,7 +466,7 @@ function App() {
           setPendingAction(null);
           goToRoute('cart');
           return;
-        } catch (_e) { /* fall through to dashboard */ }
+        } catch (_e) { /* fall through */ }
       }
 
       if (pendingAction?.type === 'trackOrder') {
@@ -457,7 +479,17 @@ function App() {
       }
 
       setPendingAction(null);
-      goToRoute('dashboard');
+      
+      // Amazon-style: Stay on current page or go to home
+      // Only staff roles go to dashboard
+      const isStaff = ['admin', 'inventory_manager', 'order_manager', 'customer_support', 'marketing_manager', 'finance_manager', 'catalog_manager', 'shipping_coordinator'].includes(payload.session?.roleName);
+      
+      if (isStaff) {
+        goToRoute('dashboard');
+      } else {
+        // Customer: go back to home to continue shopping
+        goToRoute('home');
+      }
     }, 'Signed in successfully.');
   };
 
@@ -479,11 +511,8 @@ function App() {
       await refreshBootstrap();
       setQuote(null);
       setCheckoutForm(createInitialCheckoutForm());
-      setFlash({
-        type: 'success',
-        message: `Order ${payload.order_number} placed. Tracking ${payload.trackingNumber}.`,
-      });
-      goToRoute('order', payload.order_number);
+      setConfirmedOrder(payload);
+      goToRoute('order-confirmed', payload.order_number);
     });
   };
 
@@ -622,16 +651,12 @@ function App() {
       await apiRequest('/api/admin/discounts', {
         method: 'POST',
         body: JSON.stringify({
-          sellerProfileId: discountForm.sellerProfileId ? Number(discountForm.sellerProfileId) : undefined,
           name: discountForm.name,
           code: discountForm.code || undefined,
           description: discountForm.description || undefined,
           discountType: discountForm.discountType,
           discountValue: Number(discountForm.discountValue),
-          appliesTo: discountForm.appliesTo,
-          categoryId: discountForm.categoryId ? Number(discountForm.categoryId) : undefined,
-          productId: discountForm.productId ? Number(discountForm.productId) : undefined,
-          minimumQuantity: Number(discountForm.minimumQuantity || 1),
+          minimumOrderAmount: Number(discountForm.minimumOrderAmount || 0),
           startsAt: discountForm.startsAt || undefined,
           endsAt: discountForm.endsAt || undefined,
         }),
@@ -639,7 +664,7 @@ function App() {
 
       setDiscountForm(createInitialDiscountForm());
       await refreshBootstrap();
-    }, 'Discount campaign saved.');
+    }, 'Promotion created.');
   };
 
   const submitPlatformSettings = (event) => {
@@ -760,22 +785,40 @@ function App() {
     }, 'Profile updated.');
   };
 
+  const deleteAddress = async (addressId) => {
+    await withBusy(async () => {
+      await apiRequest(`/api/account/addresses/${addressId}`, { method: 'DELETE' });
+      await refreshBootstrap();
+    }, 'Address deleted.');
+  };
+
+  const cancelOrder = async (orderNumber) => {
+    await withBusy(async () => {
+      await apiRequest(`/api/orders/${orderNumber}/cancel`, { method: 'POST' });
+      await refreshBootstrap();
+      setOrderState((s) => s.data?.order_number === orderNumber
+        ? { ...s, data: { ...s.data, order_status: 'CANCELLED' } }
+        : s
+      );
+    }, 'Order cancelled.');
+  };
+
+  // eslint-disable-next-line no-unused-vars
   const submitOrderLookup = (orderNumber) => {
     const trimmed = String(orderNumber || '').trim().toUpperCase();
     if (!trimmed) {
       setFlash({ type: 'error', message: 'Enter an order number to open order tracking.' });
       return;
     }
-
     if (!session) {
       setPendingAction({ type: 'trackOrder', orderNumber: trimmed });
       setFlash({ type: 'info', message: 'Sign in to view secure order tracking details.' });
       goToRoute('login');
       return;
     }
-
     goToRoute('order', trimmed);
   };
+  // eslint-disable-next-line no-unused-vars
 
   const submitHeaderSearch = (value, categorySlug = '') => {
     const normalizedSearch = String(value || '').trim();
@@ -820,12 +863,20 @@ function App() {
     }, `Reorder request queued for "${inventoryRow.product_name}" at ${inventoryRow.warehouse_name}.`);
   };
 
+  const updateReorderRequestStatus = async (requestId, status) => {
+    await withBusy(async () => {
+      await apiRequest(`/api/admin/reorder-requests/${requestId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      await refreshBootstrap();
+    }, `Reorder request moved to ${status}.`);
+  };
+
   const renderProductComposer = () => (
     <ProductComposer
-      showSellerField={false}
       productForm={productForm}
       setProductForm={setProductForm}
-      sellerOptions={[]}
       categories={data.lookups?.categories || []}
       currencies={data.lookups?.currencies || []}
       productAttributes={data.lookups?.productAttributes || []}
@@ -867,20 +918,14 @@ function App() {
     }
   };
 
-  const [trackForm, setTrackForm] = useState({ orderNumber: '' });
-  const submitTrack = (event) => {
-    if (event && typeof event.preventDefault === 'function') event.preventDefault();
-    submitOrderLookup(trackForm.orderNumber);
-  };
+  const [trackForm] = useState({ orderNumber: '' });
+  void trackForm;
 
   const sharedAccessProps = {
     data,
     authForm,
     setAuthForm,
     submitAuth,
-    trackForm,
-    setTrackForm,
-    submitTrack,
     isBusy,
     onNavigate: goToRoute,
   };
@@ -902,6 +947,15 @@ function App() {
           catalogState={catalogState}
           catalogSort={catalogSort}
           setCatalogSort={setCatalogSort}
+          catalogPage={catalogPage}
+          setCatalogPage={setCatalogPage}
+          catalogTotal={catalogTotal}
+          minPrice={minPrice}
+          setMinPrice={setMinPrice}
+          maxPrice={maxPrice}
+          setMaxPrice={setMaxPrice}
+          inStockOnly={inStockOnly}
+          setInStockOnly={setInStockOnly}
           onNavigate={goToRoute}
           addToCart={addToCart}
         />
@@ -920,6 +974,7 @@ function App() {
           onNavigate={goToRoute}
           session={session}
           saveToWishlist={saveToWishlist}
+          apiRequest={apiRequest}
         />
       );
       break;
@@ -995,8 +1050,10 @@ function App() {
           submitWarehouse={submitWarehouse}
           toggleManagedUserStatus={toggleManagedUserStatus}
           toggleWarehouseStatus={toggleWarehouseStatus}
+          updateReorderRequestStatus={updateReorderRequestStatus}
           warehouseForm={warehouseForm}
           setWarehouseForm={setWarehouseForm}
+          deleteAddress={deleteAddress}
           categories={data.lookups?.categories || []}
           accessPageProps={loginPageProps}
         />
@@ -1013,6 +1070,7 @@ function App() {
           orderState={orderState}
           orderDetail={orderDetail}
           onNavigate={goToRoute}
+          cancelOrder={cancelOrder}
         />
       );
       break;
@@ -1047,8 +1105,39 @@ function App() {
         />
       );
       break;
+    case 'forgot-password':
+      pageContent = <ForgotPasswordPage onNavigate={goToRoute} />;
+      break;
+    case 'reset-password':
+      pageContent = <ResetPasswordPage token={route.slug} onNavigate={goToRoute} />;
+      break;
+    case 'staff-portal':
+      pageContent = <StaffPortalPage onNavigate={goToRoute} />;
+      break;
+    case 'track-order':
+      pageContent = <TrackOrderPage onNavigate={goToRoute} />;
+      break;
+    case 'help':
+      pageContent = <HelpCenterPage onNavigate={goToRoute} />;
+      break;
+    case 'order-confirmed':
+      pageContent = (
+        <OrderConfirmedPage
+          orderNumber={confirmedOrder?.order_number || route.slug}
+          trackingNumber={confirmedOrder?.trackingNumber}
+          totalAmount={confirmedOrder?.total_amount}
+          currencyCode={confirmedOrder?.currency_code}
+          deliveryEta={confirmedOrder?.delivery_eta}
+          onNavigate={goToRoute}
+        />
+      );
+      break;
     case 'home':
     default:
+      if (route.page && !['home', 'catalog', 'product', 'cart', 'checkout', 'access', 'login', 'register', 'dashboard', 'order', 'analytics', 'inventory', 'wishlist', 'forgot-password', 'reset-password', 'staff-portal', 'track-order', 'help', 'order-confirmed'].includes(route.page)) {
+        pageContent = <NotFoundPage onNavigate={goToRoute} />;
+        break;
+      }
       pageContent = (
         <HomePage
           data={data}
@@ -1066,6 +1155,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
+        <CurrencyProvider bootstrapData={data}>
         <div className="app-shell">
           <SiteHeader
             search={search}
@@ -1087,6 +1177,7 @@ function App() {
 
           <SiteFooter storageStatus={storageStatus} data={data} onNavigate={goToRoute} />
         </div>
+        </CurrencyProvider>
       </ToastProvider>
     </ErrorBoundary>
   );

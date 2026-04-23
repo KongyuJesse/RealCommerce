@@ -3,7 +3,7 @@ import ProductCard from '../components/ProductCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
 const WishlistPage = ({ session, wishlistState, onNavigate, addToCart, removeFromWishlist, moveToCart }) => {
-  if (!session?.customerId) {
+  if (!session) {
     return (
       <EmptyState
         title="Sign in to view your Wishlist"
@@ -13,6 +13,16 @@ const WishlistPage = ({ session, wishlistState, onNavigate, addToCart, removeFro
             Sign In
           </button>
         }
+      />
+    );
+  }
+
+  if (session && !session.customerId) {
+    return (
+      <EmptyState
+        title="Wishlist is not available for staff accounts"
+        copy="The wishlist is only available for customer accounts. Staff accounts do not have a wishlist."
+        action={<button className="accent-btn" type="button" onClick={() => onNavigate('home')}>Back to Home</button>}
       />
     );
   }

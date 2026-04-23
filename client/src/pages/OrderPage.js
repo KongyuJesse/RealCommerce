@@ -2,9 +2,79 @@ import DashboardCard from '../components/DashboardCard';
 import EmptyState from '../components/EmptyState';
 import MetricPanel from '../components/MetricPanel';
 import StatusPill from '../components/StatusPill';
+import { TrackingSteps } from './ProductPage';
 import { formatDate, money, statusLabel } from '../lib/format';
 
-const OrderPage = ({ session, orderState, orderDetail, onNavigate }) => {
+const downloadReceipt = (orderDetail) => {
+  const lines = [];
+  const pad   = (label, value, width = 40) => `${label.padEnd(width - String(value).length)}${value}`;
+  const hr    = '─'.repeat(56);
+
+  lines.push('REALCOMMERCE');
+  lines.push('Official Order Receipt');
+  lines.push(hr);
+  lines.push(pad('Order Number:', orderDetail.order_number));
+  lines.push(pad('Order Date:', formatDate(orderDetail.placed_at)));
+  lines.push(pad('Order Status:', orderDetail.order_status));
+  lines.push(pad('Payment Method:', orderDetail.payment_method || 'N/A'));
+  lines.push(pad('Shipping Method:', orderDetail.shipping_method || 'Standard'));
+  if (orderDetail.delivery_eta) lines.push(pad('Delivery ETA:', formatDate(orderDetail.delivery_eta)));
+  lines.push(hr);
+
+  if (orderDetail.shipping_address) {
+    const addr = typeof orderDetail.shipping_address === 'string'
+      ? JSON.parse(orderDetail.shipping_address)
+      : orderDetail.shipping_address;
+    lines.push('SHIP TO');
+    if (addr.recipientName) lines.push(`  ${addr.recipientName}`);
+    if (addr.line1)         lines.push(`  ${addr.line1}`);
+    if (addr.line2)         lines.push(`  ${addr.line2}`);
+    if (addr.city)          lines.push(`  ${addr.city}${addr.state_region ? ', ' + addr.state_region : ''}${addr.postal_code ? ' ' + addr.postal_code : ''}`);
+    if (addr.country)       lines.push(`  ${addr.country}`);
+    lines.push(hr);
+  }
+
+  lines.push('ITEMS');
+  (orderDetail.items || []).forEach((item) => {
+    lines.push(`  ${item.name}`);
+    lines.push(`    Qty: ${item.quantity}  ×  ${money(item.unit_price, orderDetail.currency_code)}  =  ${money(item.line_total, orderDetail.currency_code)}`);
+    if (item.discount_amount > 0) lines.push(`    Discount: -${money(item.discount_amount, orderDetail.currency_code)}`);
+  });
+  lines.push(hr);
+
+  lines.push('SUMMARY');
+  lines.push(pad('  Subtotal:', money(orderDetail.subtotal_amount || 0, orderDetail.currency_code)));
+  if (Number(orderDetail.discount_amount || 0) > 0)
+    lines.push(pad('  Discounts:', `-${money(orderDetail.discount_amount, orderDetail.currency_code)}`));
+  lines.push(pad('  Shipping:', money(orderDetail.shipping_amount || 0, orderDetail.currency_code)));
+  lines.push(pad('  Tax:', money(orderDetail.tax_amount || 0, orderDetail.currency_code)));
+  lines.push(pad('  ORDER TOTAL:', money(orderDetail.total_amount || 0, orderDetail.currency_code)));
+
+  if (orderDetail.base_currency_code && orderDetail.base_currency_code !== orderDetail.currency_code) {
+    lines.push(pad('  Base Total:', money(orderDetail.base_total_amount || 0, orderDetail.base_currency_code)));
+    lines.push(pad('  Exchange Rate:', Number(orderDetail.exchange_rate_to_base || 1).toFixed(6)));
+  }
+
+  lines.push(hr);
+  if (orderDetail.shipment?.tracking_number) {
+    lines.push(pad('Tracking Number:', orderDetail.shipment.tracking_number));
+    lines.push(pad('Carrier:', orderDetail.shipment.carrier || 'N/A'));
+  }
+  lines.push(hr);
+  lines.push('Thank you for shopping with RealCommerce.');
+  lines.push('For support: support@realcommerce.com');
+  lines.push(`Generated: ${new Date().toLocaleString()}`);
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `receipt-${orderDetail.order_number}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const OrderPage = ({ session, orderState, orderDetail, onNavigate, cancelOrder }) => {
   if (!session) {
     return (
       <EmptyState
@@ -126,8 +196,58 @@ const OrderPage = ({ session, orderState, orderDetail, onNavigate }) => {
             <a className="accent-btn" href={shipment.tracking_url} target="_blank" rel="noreferrer">
               Open carrier tracking →
             </a>
+            <button
+              className="ghost-btn"
+              type="button"
+              onClick={() => downloadReceipt(orderDetail)}
+            >
+              Download Receipt
+            </button>
+            {['PENDING', 'PROCESSING'].includes(orderDetail.order_status) && cancelOrder && (
+              <button
+                className="ghost-btn"
+                type="button"
+                style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                onClick={() => {
+                  if (window.confirm('Cancel this order? This cannot be undone.')) cancelOrder(orderDetail.order_number);
+                }}
+              >
+                Cancel Order
+              </button>
+            )}
           </div>
         )}
+
+        {!shipment?.tracking_url && (
+          <div className="hero-actions">
+            <button
+              className="ghost-btn"
+              type="button"
+              onClick={() => downloadReceipt(orderDetail)}
+            >
+              Download Receipt
+            </button>
+            {['PENDING', 'PROCESSING'].includes(orderDetail.order_status) && cancelOrder && (
+              <button
+                className="ghost-btn"
+                type="button"
+                style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                onClick={() => {
+                  if (window.confirm('Cancel this order? This cannot be undone.')) cancelOrder(orderDetail.order_number);
+                }}
+              >
+                Cancel Order
+              </button>
+            )}
+          </div>
+        )}
+
+      {/* Tracking Steps */}
+      {shipment?.shipment_status && (
+        <div style={{ marginTop: '1rem' }}>
+          <TrackingSteps status={shipment.shipment_status} />
+        </div>
+      )}
       </div>
 
       {/* Tracking + Timeline */}
