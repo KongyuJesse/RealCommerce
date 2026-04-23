@@ -9,6 +9,7 @@ const { logger } = require('../utils/logger');
 const emailProvider = (process.env.EMAIL_PROVIDER || 'log').toLowerCase();
 const fromAddress   = process.env.EMAIL_FROM || 'noreply@realcommerce.com';
 const fromName      = process.env.EMAIL_FROM_NAME || 'RealCommerce';
+const clientOrigin  = config.clientOrigins[0] || config.renderExternalUrl || '#';
 
 const sendViaSMTP = async ({ to, subject, html }) => {
   // Lazy-require nodemailer so the server still boots if it is not installed.
@@ -118,7 +119,7 @@ const sendWelcomeEmail = ({ to, fullName }) =>
     html: layout(`
       <h1>Welcome, ${fullName}!</h1>
       <p>Your RealCommerce account is ready. You can now browse the catalog, save items to your wishlist, and check out with multi-currency support.</p>
-      <a class="btn" href="${process.env.CLIENT_ORIGIN || '#'}">Start Shopping</a>
+      <a class="btn" href="${clientOrigin}">Start Shopping</a>
       <p style="margin-top:24px;font-size:12px;">If you did not create this account, you can safely ignore this email.</p>
     `),
   });
@@ -161,7 +162,7 @@ const sendOrderConfirmationEmail = ({ to, fullName, order, items = [] }) => {
           <tr class="total-row"><td colspan="3">Order Total</td><td style="text-align:right">${money(order.total_amount, order.currency_code)}</td></tr>
         </tfoot>
       </table>
-      <a class="btn" href="${process.env.CLIENT_ORIGIN || '#'}/#/order/${order.order_number}">View Order</a>
+      <a class="btn" href="${clientOrigin}/#/order/${order.order_number}">View Order</a>
     `),
   });
 };
@@ -180,7 +181,7 @@ const sendShipmentDispatchedEmail = ({ to, fullName, order, shipment }) =>
         <strong>Estimated delivery:</strong> ${order.delivery_eta || 'See tracking link'}
       </p>
       ${shipment.tracking_url ? `<a class="btn" href="${shipment.tracking_url}">Track Shipment</a>` : ''}
-      <a class="btn" href="${process.env.CLIENT_ORIGIN || '#'}/#/order/${order.order_number}" style="margin-left:8px">View Order</a>
+      <a class="btn" href="${clientOrigin}/#/order/${order.order_number}" style="margin-left:8px">View Order</a>
     `),
   });
 
@@ -192,7 +193,7 @@ const sendDeliveryConfirmationEmail = ({ to, fullName, order }) =>
       <h1>Delivered ✓</h1>
       <p>Hi ${fullName}, your order <strong>${order.order_number}</strong> has been delivered.</p>
       <p>We hope you love your purchase. If anything is not right, our returns window is open for 30 days.</p>
-      <a class="btn" href="${process.env.CLIENT_ORIGIN || '#'}/#/order/${order.order_number}">View Order</a>
+      <a class="btn" href="${clientOrigin}/#/order/${order.order_number}">View Order</a>
     `),
   });
 

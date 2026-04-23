@@ -20,8 +20,6 @@ Use the root [render.yaml](../render.yaml) to create:
 
 - `DATABASE_URL`
 - `SESSION_SECRET`
-- `PUBLIC_API_URL`
-- `PUBLIC_SITE_URL`
 
 4. Add optional values as needed:
 
@@ -40,9 +38,10 @@ Use the root [render.yaml](../render.yaml) to create:
 
 ### How the services are wired
 
-- The frontend build receives `REACT_APP_API_BASE_URL` from the API service's `PUBLIC_API_URL`.
-- The API receives `CLIENT_ORIGIN` from the frontend service's `PUBLIC_SITE_URL`.
+- The frontend build receives `REACT_APP_API_BASE_URL` from the API service's `RENDER_EXTERNAL_URL`.
+- The API receives `CLIENT_ORIGIN` from the frontend service's `RENDER_EXTERNAL_URL`.
 - Frontend product/media URLs are resolved against `REACT_APP_API_BASE_URL`, which is important when the frontend and API are on different domains.
+- The Blueprint also creates a generated `REALCOMMERCE_SESSION_SECRET` fallback so existing services with a blank `SESSION_SECRET` do not fail startup after sync.
 
 ### Render notes
 

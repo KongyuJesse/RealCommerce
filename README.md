@@ -91,8 +91,6 @@ Set these required values in Render during Blueprint setup:
 
 - `DATABASE_URL`
 - `SESSION_SECRET`
-- `PUBLIC_API_URL`
-- `PUBLIC_SITE_URL`
 
 Optional but commonly needed:
 
@@ -100,7 +98,7 @@ Optional but commonly needed:
 - `GCS_*` media storage variables
 - `RESEND_API_KEY` or `SMTP_*` email variables
 
-The static site receives `REACT_APP_API_BASE_URL` from the API service's `PUBLIC_API_URL` env var. The API receives `CLIENT_ORIGIN` from the frontend service's `PUBLIC_SITE_URL` env var.
+The Blueprint wires the static site and API together from each service's Render external URL. It also creates a generated `REALCOMMERCE_SESSION_SECRET` fallback for existing Render services where `SESSION_SECRET` is blank or missing.
 
 ### Vercel + Render
 

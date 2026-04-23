@@ -27,14 +27,14 @@ services:
         fromService:
           type: web
           name: realcommerce-web
-          envVarKey: PUBLIC_SITE_URL
+          envVarKey: RENDER_EXTERNAL_URL
       - key: CLIENT_ORIGIN_REGEX
-        sync: false
-      - key: PUBLIC_API_URL
         sync: false
       - key: DATABASE_URL
         sync: false
       - key: SESSION_SECRET
+        sync: false
+      - key: REALCOMMERCE_SESSION_SECRET
         generateValue: true
       - key: SESSION_COOKIE_NAME
         value: rc_session
@@ -126,10 +126,8 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      - key: PUBLIC_SITE_URL
-        sync: false
       - key: REACT_APP_API_BASE_URL
         fromService:
           type: web
           name: realcommerce-api
-          envVarKey: PUBLIC_API_URL
+          envVarKey: RENDER_EXTERNAL_URL
