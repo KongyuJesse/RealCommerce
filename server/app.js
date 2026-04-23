@@ -5,7 +5,9 @@ const express = require('express');
 const helmet = require('helmet');
 const config = require('./config');
 const { loadCurrentUser } = require('./services/auth-service');
+const { geoMiddleware } = require('./services/geo-service');
 const { createApiRouter } = require('./routes/api');
+const { createStaffPortalRouter } = require('./routes/staff-portal');
 const { buildCookieHeader, parseCookies } = require('./utils/http');
 const { logger } = require('./utils/logger');
 const { bytesToHuman, durationMsFrom, formatDuration, getClientIp } = require('./utils/request');
@@ -174,6 +176,8 @@ const clearSessionCookieHeader = buildCookieHeader({
   domain: config.sessionCookieDomain,
 });
 
+app.use(geoMiddleware);
+
 app.use(async (request, _response, next) => {
   try {
     const cookies = parseCookies(request.headers.cookie);
@@ -189,6 +193,12 @@ app.use(async (request, _response, next) => {
 app.use(
   config.apiPrefix,
   createApiRouter({ loadSessionUser: loadCurrentUser, clearSessionCookieHeader })
+);
+
+/* ── Secret staff portal — non-obvious path ── */
+app.use(
+  '/api/x7k9m',
+  createStaffPortalRouter({ loadSessionUser: loadCurrentUser, clearSessionCookieHeader })
 );
 
 app.use((request, response) => {

@@ -1,10 +1,8 @@
 import DashboardCard from './DashboardCard';
 
 const ProductComposer = ({
-  showSellerField,
   productForm,
   setProductForm,
-  sellerOptions,
   categories,
   currencies,
   productAttributes,
@@ -38,16 +36,6 @@ const ProductComposer = ({
     >
       <form className="stack-form" onSubmit={submitProduct}>
         <div className="form-grid">
-          {showSellerField ? (
-            <select value={productForm.sellerProfileId} onChange={(event) => setProductForm((current) => ({ ...current, sellerProfileId: event.target.value }))}>
-              <option value="">Assign seller</option>
-              {sellerOptions.map((seller) => (
-                <option key={seller.sellerProfileId} value={seller.sellerProfileId}>
-                  {seller.storeName}
-                </option>
-              ))}
-            </select>
-          ) : null}
           <select value={productForm.categoryId} onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))}>
             <option value="">Category</option>
             {categories.map((category) => (

@@ -1,5 +1,8 @@
-const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+export const apiBaseUrl = String(process.env.REACT_APP_API_BASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 const API_TIMEOUT_MS = 15000;
+const ABSOLUTE_URL_PATTERN = /^(?:[a-z]+:)?\/\//i;
 
 class ApiError extends Error {
   constructor(message, status, body) {
@@ -24,7 +27,7 @@ export const apiRequest = async (path, options = {}) => {
       headers['Content-Type'] = headers['Content-Type'] || 'application/json';
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const response = await fetch(buildApiUrl(path), {
       credentials: 'include',
       signal: controller.signal,
       ...options,
@@ -63,6 +66,23 @@ export const apiRequest = async (path, options = {}) => {
   } finally {
     clearTimeout(timeout);
   }
+};
+
+export const buildApiUrl = (path = '') => {
+  const normalizedPath = String(path || '').trim();
+  if (!normalizedPath) {
+    return apiBaseUrl;
+  }
+
+  if (ABSOLUTE_URL_PATTERN.test(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  if (!apiBaseUrl) {
+    return normalizedPath;
+  }
+
+  return `${apiBaseUrl}${normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`}`;
 };
 
 export default apiRequest;

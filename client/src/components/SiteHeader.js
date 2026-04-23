@@ -1,49 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   CartIcon,
-  CreditCardIcon,
   HeartIcon,
   MapPinIcon,
   MenuIcon,
   SearchIcon,
-  ShieldIcon,
-  TruckIcon,
 } from './MarketplaceIcons';
-
-const defaultUtilityHighlights = [
-  { label: 'Verified sellers', icon: ShieldIcon },
-  { label: 'Live shipment tracking', icon: TruckIcon },
-  { label: 'Protected checkout', icon: CreditCardIcon },
-];
+import CurrencySelector from './CurrencySelector';
 
 const defaultNavigationLinks = [
-  { label: 'Home', page: 'home' },
-  { label: 'Catalog', page: 'catalog' },
-  { label: 'Track order', page: 'access' },
+  { label: 'Home',             page: 'home' },
+  { label: "Today's Deals",    page: 'catalog' },
+  { label: 'New Arrivals',     page: 'catalog' },
+  { label: 'Customer Service', page: 'access' },
 ];
 
-const adminRoles = ['admin', 'operations_manager', 'merchandising_manager'];
+const adminRoles = [
+  'admin', 'inventory_manager', 'order_manager', 'catalog_manager',
+  'marketing_manager', 'finance_manager', 'customer_support', 'shipping_coordinator',
+];
 
 const normalizeNavigationLinks = (links, session) => {
-  const items = Array.isArray(links) && links.length
+  const base = Array.isArray(links) && links.length
     ? links.map((l) => (typeof l === 'string' ? { label: l, page: 'catalog' } : l))
     : defaultNavigationLinks;
 
-  if (!session) return [...items, { label: 'Sign in', page: 'login' }];
+  if (!session) return base;
 
-  const loggedIn = [...items, { label: 'Dashboard', page: 'dashboard' }];
-  if (session.customerId) loggedIn.push({ label: 'Wishlist', page: 'wishlist' });
+  const out = [...base, { label: 'Dashboard', page: 'dashboard' }];
+  if (session.customerId) out.push({ label: 'Wishlist', page: 'wishlist' });
   if (adminRoles.includes(session.roleName)) {
-    loggedIn.push({ label: 'Analytics', page: 'analytics' });
-    loggedIn.push({ label: 'Inventory', page: 'inventory' });
+    out.push({ label: 'Analytics', page: 'analytics' });
+    out.push({ label: 'Inventory', page: 'inventory' });
   }
-  return loggedIn;
+  return out;
 };
 
 const formatRoleLabel = (roleName) =>
   roleName
     ? roleName.split('_').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
-    : 'Account access';
+    : 'Account & Lists';
 
 const isActiveLink = (route, item) => {
   if (!route || !item?.page) return false;
@@ -52,37 +48,30 @@ const isActiveLink = (route, item) => {
 };
 
 const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, onNavigate, wishlistCount = 0 }) => {
-  const site               = data?.site || {};
-  const categories         = data?.lookups?.categories || [];
-  const utilityHighlights  = site.utilityHighlights || defaultUtilityHighlights;
-  const navigationLinks    = normalizeNavigationLinks(site.navigationLinks, session);
-  const location           = session?.city || site.location || 'Lagos';
-  const cartCount          = cart?.itemCount || 0;
-  const firstName          = session?.firstName || session?.fullName?.split(' ')[0] || 'there';
-  const roleLabel          = formatRoleLabel(session?.roleName);
+  const site            = data?.site || {};
+  const categories      = data?.lookups?.categories || [];
+  const navigationLinks = normalizeNavigationLinks(site.navigationLinks, session);
+  const location        = session?.city || site.location || 'Lagos';
+  const cartCount       = cart?.itemCount || 0;
+  const firstName       = session?.firstName || session?.fullName?.split(' ')[0] || 'there';
+  const roleLabel       = formatRoleLabel(session?.roleName);
 
   const [selectedCategory, setSelectedCategory] = useState('');
   const [drawerOpen, setDrawerOpen]             = useState(false);
   const drawerRef = useRef(null);
 
-  // Sync category with route
   useEffect(() => {
     setSelectedCategory(route?.page === 'catalog' ? route.slug || '' : '');
   }, [route?.page, route?.slug]);
 
-  // Close drawer on route change
   useEffect(() => { setDrawerOpen(false); }, [route?.page]);
 
-  // Trap focus / close on Escape
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const handleKey = (e) => { if (e.key === 'Escape') setDrawerOpen(false); };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [drawerOpen]);
-
-  const spotlightLabel = site.spotlightLabel ||
-    'Shop confidently with secure checkout, live exchange rates, and real-time inventory tracking.';
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -96,32 +85,11 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
 
   return (
     <header className="site-header">
-      {/* Skip to content — accessibility */}
       <a href="#main-content" className="skip-to-content">Skip to main content</a>
 
-      {/* Utility Bar */}
-      <div className="header-utility-bar">
-        <div className="header-utility-copy">
-          <span className="header-utility-badge">RealCommerce.com</span>
-          <p>{site.tagline || 'Managed commerce, fulfillment, and shipping in one operating surface.'}</p>
-        </div>
-        <div className="header-utility-highlights" aria-label="Platform highlights">
-          {utilityHighlights.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div className="utility-pill" key={item.label}>
-                <Icon size={14} />
-                <span>{item.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Top Navbar */}
+      {/* ── Main Navbar ── */}
       <div className="navbar-top">
         <div className="nav-left">
-          {/* Hamburger (mobile) */}
           <button
             className="nav-hamburger"
             type="button"
@@ -132,7 +100,6 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
             <span /><span /><span />
           </button>
 
-          {/* Logo */}
           <button className="logo" type="button" onClick={() => onNavigate('home')} aria-label="RealCommerce home">
             <span className="logo-mark">RC</span>
             <span className="logo-lockup">
@@ -141,7 +108,6 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
             </span>
           </button>
 
-          {/* Deliver-to */}
           <button
             className="deliver-to"
             type="button"
@@ -172,15 +138,13 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
               ))}
             </select>
           </label>
-
           <input
             type="text"
-            placeholder="Search products, sellers, and inventory..."
+            placeholder="Search products..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search"
           />
-
           <button className="search-btn" type="submit" aria-label="Submit search">
             <SearchIcon size={18} />
           </button>
@@ -188,6 +152,8 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
 
         {/* Right Actions */}
         <div className="nav-right">
+          <CurrencySelector />
+
           <button
             className="nav-action nav-account"
             type="button"
@@ -202,16 +168,15 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
             type="button"
             onClick={() => onNavigate(session ? 'dashboard' : 'access')}
           >
-            <span>{session ? 'Shipping & returns' : 'Track & manage'}</span>
-            <span className="nav-bold">Orders</span>
+            <span>Returns</span>
+            <span className="nav-bold">& Orders</span>
           </button>
 
-          {/* Wishlist */}
           <button
             className="nav-action nav-wishlist"
             type="button"
             onClick={() => onNavigate('wishlist')}
-            aria-label={`Your wishlist${wishlistCount > 0 ? ` with ${wishlistCount} item${wishlistCount !== 1 ? 's' : ''}` : ''}`}
+            aria-label={`Wishlist${wishlistCount > 0 ? ` (${wishlistCount})` : ''}`}
           >
             <span style={{ position: 'relative', display: 'inline-flex' }}>
               <HeartIcon size={20} />
@@ -233,14 +198,13 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
             <CartIcon size={26} />
             {cartCount > 0 && <span className="nav-cart-badge" aria-hidden="true">{cartCount}</span>}
             <span className="nav-cart-copy">
-              <span style={{ display: 'none' }}>{cartCount} items</span>
               <span className="nav-bold">Cart</span>
             </span>
           </button>
         </div>
       </div>
 
-      {/* Secondary Nav */}
+      {/* ── Secondary Nav ── */}
       <nav className="nav-secondary" aria-label="Primary navigation">
         <button className="nav-all" type="button" onClick={() => onNavigate('catalog')}>
           <MenuIcon size={16} />
@@ -274,10 +238,6 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
             ))}
           </div>
         )}
-
-        <div className="nav-spotlight" aria-label="Platform highlight">
-          <span className="nav-spotlight-label">{spotlightLabel}</span>
-        </div>
       </nav>
 
       {/* Mobile Drawer Overlay */}
@@ -294,7 +254,11 @@ const SiteHeader = ({ search, setSearch, onSearch, session, cart, data, route, o
             <span style={{ fontWeight: 700, fontSize: 15 }}>
               {session ? `Hello, ${firstName}` : 'Hello, sign in'}
             </span>
-            <button className="mobile-nav-close" type="button" onClick={() => setDrawerOpen(false)} aria-label="Close menu">x</button>
+            <button className="mobile-nav-close" type="button" onClick={() => setDrawerOpen(false)} aria-label="Close menu">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
           </div>
           <div className="mobile-nav-links">
             {allLinks.map((item) => (

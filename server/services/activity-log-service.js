@@ -1,7 +1,6 @@
 const { query } = require('../db');
 const { asNumber } = require('../utils/validation');
-
-const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
+const { normalizeText } = require('../utils/format');
 
 const recordAdminActivity = async ({
   client = { query },

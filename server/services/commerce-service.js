@@ -14,8 +14,20 @@ const { listAdminActivity, recordAdminActivity } = require('./activity-log-servi
 const { listManagedUsers, listWarehouses } = require('./admin-service');
 const { getExchangeRateSyncStatus } = require('./exchange-rate-sync-service');
 const { assert, asNumber, isNonEmptyString, normalizeEmail, isEmail } = require('../utils/validation');
+const {
+  normalizeText,
+  normalizeNullableText,
+  normalizeBoolean,
+  roundMoney,
+  mapMoneyRow,
+  mapNullableMoneyRow,
+} = require('../utils/format');
+const {
+  sendOrderConfirmationEmail,
+  sendShipmentDispatchedEmail,
+  sendDeliveryConfirmationEmail,
+} = require('./email-service');
 
-const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
 const roundRate = (value) => Number(Number(value || 0).toFixed(6));
 const addDays = (date, days) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 const createOrderNumber = () => `RC-${Date.now().toString().slice(-8)}${crypto.randomInt(10, 100)}`;
@@ -55,7 +67,6 @@ const SHIPMENT_PROGRESS_BY_STATUS = {
   DELIVERED: 100,
   RETURNED: 100,
 };
-const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
 const normalizeSlug = (value) =>
   normalizeText(value)
     .toLowerCase()
@@ -95,21 +106,6 @@ const getFileExtension = (fileName, mimeType) => {
   return explicitExtension && /^[a-z0-9]+$/.test(explicitExtension)
     ? explicitExtension
     : extensionMap[mimeType] || 'bin';
-};
-const normalizeNullableText = (value) => {
-  const normalized = normalizeText(value);
-  return normalized || null;
-};
-const normalizeBoolean = (value, fallback = false) => {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 };
 const normalizeAddressPayload = (address = {}, fallbackRecipientName = null) => ({
   label: normalizeNullableText(address.label),
@@ -179,22 +175,6 @@ const buildShipmentTrackingSummary = ({ shipment, shipmentEvents = [], deliveryE
     eventCount: shipmentEvents.length,
   };
 };
-const mapMoneyRow = (row, fields) =>
-  fields.reduce(
-    (accumulator, field) => ({
-      ...accumulator,
-      [field]: roundMoney(row[field]),
-    }),
-    row
-  );
-const mapNullableMoneyRow = (row, fields) =>
-  fields.reduce(
-    (accumulator, field) => ({
-      ...accumulator,
-      [field]: row[field] === null || row[field] === undefined ? null : roundMoney(row[field]),
-    }),
-    row
-  );
 const formatDiscountLabel = (campaign) =>
   campaign.discount_type === 'PERCENT'
     ? `${roundMoney(campaign.discount_value)}% off`
@@ -242,12 +222,12 @@ const resolveSessionCapabilities = (currentUser) => {
   const roleName = currentUser?.role_name || '';
   return {
     canShop: Boolean(currentUser?.customer_id),
-    canViewAnalytics: ['admin', 'operations_manager', 'merchandising_manager'].includes(roleName),
-    canManageCatalog: ['admin', 'merchandising_manager'].includes(roleName),
-    canManageOperations: ['admin', 'operations_manager'].includes(roleName),
+    canViewAnalytics: ['admin', 'inventory_manager', 'order_manager', 'marketing_manager', 'finance_manager', 'catalog_manager'].includes(roleName),
+    canManageCatalog: ['admin', 'catalog_manager', 'marketing_manager'].includes(roleName),
+    canManageOperations: ['admin', 'order_manager', 'inventory_manager', 'shipping_coordinator'].includes(roleName),
     canManagePeople: roleName === 'admin',
-    canManageWarehouses: ['admin', 'operations_manager'].includes(roleName),
-    canManageExchangeRates: ['admin', 'merchandising_manager'].includes(roleName),
+    canManageWarehouses: ['admin', 'inventory_manager'].includes(roleName),
+    canManageExchangeRates: ['admin', 'finance_manager'].includes(roleName),
   };
 };
 
@@ -458,145 +438,20 @@ const getOperationalSettings = async () => {
   };
 };
 
-const getCampaignDiscountAmount = (campaign, baseUnitPrice) => {
-  if (!campaign) {
-    return 0;
-  }
-
-  if (campaign.discount_type === 'PERCENT') {
-    return roundMoney(baseUnitPrice * (Number(campaign.discount_value || 0) / 100));
-  }
-
-  return roundMoney(Math.min(baseUnitPrice, Number(campaign.discount_value || 0)));
-};
-
-const isCampaignApplicableToProduct = (campaign, product, quantity = 1) => {
-  if (!campaign || !product) {
-    return false;
-  }
-
-  if (!campaign.is_active) {
-    return false;
-  }
-
-  if (quantity < Number(campaign.minimum_quantity || 1)) {
-    return false;
-  }
-
-  if (campaign.applies_to === 'PRODUCT') {
-    return Number(campaign.product_id) === Number(product.id);
-  }
-
-  if (campaign.applies_to === 'CATEGORY') {
-    return Number(campaign.category_id) === Number(product.category_id);
-  }
-
-  return true;
-};
-
-const selectBestDiscountCampaign = (product, campaigns = [], quantity = 1) => {
-  const matching = campaigns
-    .filter((campaign) => Number(campaign.seller_profile_id) === Number(product.seller_profile_id))
-    .filter((campaign) => isCampaignApplicableToProduct(campaign, product, quantity))
-    .map((campaign) => ({
-      campaign,
-      discountAmount: getCampaignDiscountAmount(campaign, Number(product.unit_price || 0)),
-    }))
-    .filter((item) => item.discountAmount > 0)
-    .sort((left, right) => {
-      if (right.discountAmount !== left.discountAmount) {
-        return right.discountAmount - left.discountAmount;
-      }
-
-      return new Date(left.campaign.ends_at).getTime() - new Date(right.campaign.ends_at).getTime();
-    });
-
-  return matching[0] || null;
-};
-
-const loadSellerDiscountCampaigns = async ({ sellerProfileIds = [] } = {}, client = { query }) => {
-  if (!sellerProfileIds.length) {
-    return [];
-  }
-
-  const uniqueSellerProfileIds = [...new Set(sellerProfileIds.map((value) => Number(value)).filter(Boolean))];
-
-  const result = await client.query(
-    `
-      SELECT
-        id,
-        seller_profile_id,
-        name,
-        code,
-        description,
-        discount_type,
-        discount_value,
-        applies_to,
-        category_id,
-        product_id,
-        minimum_quantity,
-        starts_at,
-        ends_at,
-        is_active,
-        created_at
-      FROM seller_discount_campaigns
-      WHERE seller_profile_id = ANY($1::int[])
-        AND is_active = TRUE
-        AND starts_at <= NOW()
-        AND ends_at >= NOW()
-      ORDER BY created_at DESC, id DESC
-    `,
-    [uniqueSellerProfileIds]
-  );
-
-  return result.rows;
-};
-
-const applySellerDiscountsToProducts = async (products = [], options = {}) => {
-  if (!products.length) {
-    return [];
-  }
-
-  const quantityResolver = options.quantityResolver || (() => 1);
-  const client = options.client || { query };
-  const campaigns = await loadSellerDiscountCampaigns(
-    {
-      sellerProfileIds: products.map((product) => product.seller_profile_id),
-    },
-    client
-  );
-
-  return products.map((product) => {
-    const originalUnitPrice = Number(product.unit_price || 0);
-    const quantity = Number(quantityResolver(product) || 1);
-    const bestMatch = selectBestDiscountCampaign(product, campaigns, quantity);
-    const discountAmount = bestMatch ? bestMatch.discountAmount : 0;
-
-    return {
-      ...product,
-      original_unit_price: originalUnitPrice,
-      unit_price: roundMoney(originalUnitPrice - discountAmount),
-      discount_amount: roundMoney(discountAmount),
-      discount_label: bestMatch ? bestMatch.campaign.name : null,
-      active_discount: bestMatch
-        ? {
-            id: bestMatch.campaign.id,
-            name: bestMatch.campaign.name,
-            code: bestMatch.campaign.code,
-            description: bestMatch.campaign.description,
-            discount_type: bestMatch.campaign.discount_type,
-            discount_value: roundMoney(bestMatch.campaign.discount_value),
-            label: formatDiscountLabel(bestMatch.campaign),
-          }
-        : null,
-    };
-  });
+const applySellerDiscountsToProducts = async (products = []) => {
+  return products.map((product) => ({
+    ...product,
+    original_unit_price: Number(product.unit_price || 0),
+    discount_amount: 0,
+    discount_label: null,
+    active_discount: null,
+  }));
 };
 
 const getProductPricingSnapshot = async ({ productId, quantity = 1, client = { query } }) => {
   const product = await client.query(
     `
-      SELECT id, seller_profile_id, category_id, unit_price, currency_code, status
+      SELECT id, category_id, unit_price, currency_code, status
       FROM products
       WHERE id = $1
       LIMIT 1
@@ -606,10 +461,7 @@ const getProductPricingSnapshot = async ({ productId, quantity = 1, client = { q
 
   assert(product.rowCount > 0 && product.rows[0].status === 'ACTIVE', 'Product not found.', 404);
 
-  const [discounted] = await applySellerDiscountsToProducts(product.rows, {
-    client,
-    quantityResolver: () => quantity,
-  });
+  const [discounted] = await applySellerDiscountsToProducts(product.rows);
 
   return discounted;
 };
@@ -632,6 +484,22 @@ const buildProductFilters = (requestQuery = {}) => {
     where.push('EXISTS (SELECT 1 FROM inventory i WHERE i.product_id = p.id AND i.quantity_on_hand > 0)');
   }
 
+  if (requestQuery.minPrice) {
+    const min = Number(requestQuery.minPrice);
+    if (Number.isFinite(min) && min >= 0) {
+      params.push(min);
+      where.push(`p.unit_price >= $${params.length}`);
+    }
+  }
+
+  if (requestQuery.maxPrice) {
+    const max = Number(requestQuery.maxPrice);
+    if (Number.isFinite(max) && max >= 0) {
+      params.push(max);
+      where.push(`p.unit_price <= $${params.length}`);
+    }
+  }
+
   if (searchTerm) {
     params.push(`%${searchTerm}%`);
     where.push(`(p.name ILIKE $${params.length} OR p.short_description ILIKE $${params.length} OR c.name ILIKE $${params.length})`);
@@ -652,14 +520,12 @@ const listProducts = async (requestQuery = {}) => {
         p.id, p.category_id, p.sku, p.name, p.slug, p.short_description, p.long_description,
         p.unit_price, p.currency_code, p.status, p.is_featured, p.launch_month,
         c.name AS category_name, c.slug AS category_slug,
-        sp.id AS seller_profile_id, sp.store_name, sp.slug AS seller_slug,
         COALESCE(image.public_url, image.source_url) AS image_url,
         COALESCE(stock.available_units, 0) AS available_units,
         COALESCE(reviews.average_rating, 0) AS average_rating,
         COALESCE(reviews.review_count, 0) AS review_count
       FROM products p
       JOIN categories c ON c.id = p.category_id
-      JOIN seller_profiles sp ON sp.id = p.seller_profile_id
       LEFT JOIN LATERAL (
         SELECT public_url, source_url
         FROM product_images
@@ -698,13 +564,11 @@ const getProductDetail = async (slug) => {
         p.id, p.category_id, p.sku, p.name, p.slug, p.short_description, p.long_description,
         p.unit_price, p.currency_code, p.status, p.is_featured, p.launch_month,
         c.name AS category_name, c.slug AS category_slug,
-        sp.id AS seller_profile_id, sp.store_name, sp.slug AS seller_slug,
         COALESCE(stock.available_units, 0) AS available_units,
         COALESCE(reviews.average_rating, 0) AS average_rating,
         COALESCE(reviews.review_count, 0) AS review_count
       FROM products p
       JOIN categories c ON c.id = p.category_id
-      JOIN seller_profiles sp ON sp.id = p.seller_profile_id
       LEFT JOIN LATERAL (SELECT SUM(quantity_on_hand)::integer AS available_units FROM inventory WHERE product_id = p.id) stock ON TRUE
       LEFT JOIN LATERAL (SELECT ROUND(AVG(rating)::numeric, 1) AS average_rating, COUNT(*)::integer AS review_count FROM product_reviews WHERE product_id = p.id) reviews ON TRUE
       WHERE p.slug = $1
@@ -723,7 +587,7 @@ const getProductDetail = async (slug) => {
     query('SELECT id, public_url, source_url, object_path, alt_text, is_primary, display_order FROM product_images WHERE product_id = $1 ORDER BY is_primary DESC, display_order ASC, id ASC', [product.id]),
     query('SELECT pa.name, pa.display_name, pav.value_text FROM product_attribute_values pav JOIN product_attributes pa ON pa.id = pav.attribute_id WHERE pav.product_id = $1 ORDER BY pa.display_name', [product.id]),
     query("SELECT pr.id, pr.rating, pr.title, pr.body, pr.is_verified_purchase, pr.created_at, CONCAT(c.first_name, ' ', c.last_name) AS customer_name FROM product_reviews pr JOIN customers c ON c.id = pr.customer_id WHERE pr.product_id = $1 ORDER BY pr.created_at DESC LIMIT 5", [product.id]),
-    query("SELECT p.id, p.slug, p.name, p.short_description, p.unit_price, p.currency_code, p.category_id, p.seller_profile_id, COALESCE(image.public_url, image.source_url) AS image_url FROM products p LEFT JOIN LATERAL (SELECT public_url, source_url FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, display_order ASC LIMIT 1) image ON TRUE WHERE p.category_id = $1 AND p.id <> $2 AND p.status = 'ACTIVE' ORDER BY p.is_featured DESC, p.created_at DESC LIMIT 4", [product.category_id, product.id]),
+    query("SELECT p.id, p.slug, p.name, p.short_description, p.unit_price, p.currency_code, p.category_id, COALESCE(image.public_url, image.source_url) AS image_url FROM products p LEFT JOIN LATERAL (SELECT public_url, source_url FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, display_order ASC LIMIT 1) image ON TRUE WHERE p.category_id = $1 AND p.id <> $2 AND p.status = 'ACTIVE' ORDER BY p.is_featured DESC, p.created_at DESC LIMIT 4", [product.category_id, product.id]),
   ]);
 
   const relatedProducts = await applySellerDiscountsToProducts(related.rows);
@@ -812,7 +676,6 @@ const getCustomerProfile = async (customerId) => {
           p.unit_price,
           p.currency_code,
           p.category_id,
-          p.seller_profile_id,
           COALESCE(image.public_url, image.source_url) AS image_url
         FROM wishlists w
         JOIN products p ON p.id = w.product_id
@@ -858,7 +721,6 @@ const getCustomerProfile = async (customerId) => {
           p.unit_price,
           p.currency_code,
           p.category_id,
-          p.seller_profile_id,
           COALESCE(image.public_url, image.source_url) AS image_url,
           COALESCE(sc.affinity_score, 0) AS affinity_score
         FROM products p
@@ -940,166 +802,6 @@ const getCustomerProfile = async (customerId) => {
       totalFields: profileFields.length,
       percent: Math.round((completedProfileFields / profileFields.length) * 100),
     },
-  };
-};
-
-const getSellerProfile = async (sellerProfileId) => {
-  const [seller, overview, products, recentOrders, campaigns, fulfilmentQueue] = await Promise.all([
-    query(
-      `
-        SELECT id, user_id, store_name, slug, description, support_email, phone, city, country,
-          payout_currency_code, is_verified, is_active, created_at
-        FROM seller_profiles
-        WHERE id = $1
-        LIMIT 1
-      `,
-      [sellerProfileId]
-    ),
-    query(
-      `
-        SELECT
-          (SELECT COUNT(*)::integer FROM products p WHERE p.seller_profile_id = $1) AS product_count,
-          (SELECT COUNT(*)::integer FROM products p WHERE p.seller_profile_id = $1 AND p.status = 'ACTIVE') AS active_product_count,
-          (
-            SELECT COUNT(DISTINCT oi.order_id)::integer
-            FROM order_items oi
-            JOIN products p ON p.id = oi.product_id
-            WHERE p.seller_profile_id = $1
-          ) AS order_count,
-          (
-            SELECT COALESCE(SUM(oi.quantity), 0)::integer
-            FROM order_items oi
-            JOIN products p ON p.id = oi.product_id
-            WHERE p.seller_profile_id = $1
-          ) AS units_sold,
-          (
-            SELECT COALESCE(SUM(oi.line_total), 0)::numeric(12,2)
-            FROM order_items oi
-            JOIN products p ON p.id = oi.product_id
-            WHERE p.seller_profile_id = $1
-          ) AS gross_revenue,
-          (
-            SELECT COUNT(DISTINCT s.id)::integer
-            FROM shipments s
-            JOIN orders o ON o.id = s.order_id
-            JOIN order_items oi ON oi.order_id = o.id
-            JOIN products p ON p.id = oi.product_id
-            WHERE p.seller_profile_id = $1
-              AND s.shipment_status IN ('PENDING', 'PICKING', 'PACKED', 'IN_TRANSIT')
-          ) AS open_fulfilment_orders,
-          (
-            SELECT COALESCE(ROUND(AVG(pr.rating)::numeric, 1), 0)::numeric(12,1)
-            FROM product_reviews pr
-            JOIN products p ON p.id = pr.product_id
-            WHERE p.seller_profile_id = $1
-          ) AS average_rating,
-          (
-            SELECT COUNT(*)::integer
-            FROM seller_discount_campaigns sdc
-            WHERE sdc.seller_profile_id = $1
-              AND sdc.is_active = TRUE
-              AND sdc.starts_at <= NOW()
-              AND sdc.ends_at >= NOW()
-          ) AS active_discount_count
-      `,
-      [sellerProfileId]
-    ),
-    query(
-      `
-        SELECT p.id, p.name, p.slug, p.status, p.unit_price, p.currency_code, p.category_id, p.seller_profile_id,
-          COALESCE(image.public_url, image.source_url) AS image_url,
-          COALESCE(stock.available_units, 0) AS available_units
-        FROM products p
-        LEFT JOIN LATERAL (
-          SELECT public_url, source_url
-          FROM product_images
-          WHERE product_id = p.id
-          ORDER BY is_primary DESC, display_order ASC
-          LIMIT 1
-        ) image ON TRUE
-        LEFT JOIN LATERAL (
-          SELECT SUM(quantity_on_hand)::integer AS available_units
-          FROM inventory
-          WHERE product_id = p.id
-        ) stock ON TRUE
-        WHERE p.seller_profile_id = $1
-        ORDER BY p.created_at DESC
-        LIMIT 10
-      `,
-      [sellerProfileId]
-    ),
-    query(
-      `
-        SELECT o.order_number, o.order_status, o.total_amount, o.currency_code, o.placed_at,
-          SUM(oi.line_total)::numeric(12,2) AS seller_gross
-        FROM order_items oi
-        JOIN orders o ON o.id = oi.order_id
-        JOIN products p ON p.id = oi.product_id
-        WHERE p.seller_profile_id = $1
-        GROUP BY o.id
-        ORDER BY o.placed_at DESC
-        LIMIT 8
-      `,
-      [sellerProfileId]
-    ),
-    query(
-      `
-        SELECT
-          id,
-          name,
-          code,
-          description,
-          discount_type,
-          discount_value,
-          applies_to,
-          minimum_quantity,
-          starts_at,
-          ends_at,
-          is_active
-        FROM seller_discount_campaigns
-        WHERE seller_profile_id = $1
-        ORDER BY is_active DESC, starts_at DESC, id DESC
-        LIMIT 8
-      `,
-      [sellerProfileId]
-    ),
-    query(
-      `
-        SELECT
-          o.order_number,
-          o.order_status,
-          o.currency_code,
-          o.placed_at,
-          s.shipment_status,
-          s.tracking_number,
-          SUM(oi.line_total)::numeric(12,2) AS seller_gross
-        FROM order_items oi
-        JOIN orders o ON o.id = oi.order_id
-        JOIN products p ON p.id = oi.product_id
-        LEFT JOIN shipments s ON s.order_id = o.id
-        WHERE p.seller_profile_id = $1
-          AND COALESCE(s.shipment_status, 'PENDING') IN ('PENDING', 'PICKING', 'PACKED', 'IN_TRANSIT')
-        GROUP BY o.id, s.id
-        ORDER BY o.placed_at DESC
-        LIMIT 6
-      `,
-      [sellerProfileId]
-    ),
-  ]);
-
-  const pricedProducts = await applySellerDiscountsToProducts(products.rows);
-
-  return {
-    seller: seller.rows[0] || null,
-    overview: overview.rows[0]
-      ? mapMoneyRow(overview.rows[0], ['gross_revenue', 'average_rating'])
-      : null,
-    products: pricedProducts.map((row) =>
-      mapMoneyRow(row, ['unit_price', 'original_unit_price', 'discount_amount'])
-    ),
-    recentOrders: recentOrders.rows.map((row) => mapMoneyRow(row, ['total_amount', 'seller_gross'])),
-    campaigns: campaigns.rows.map((row) => mapMoneyRow(row, ['discount_value'])),
-    fulfilmentQueue: fulfilmentQueue.rows.map((row) => mapMoneyRow(row, ['seller_gross'])),
   };
 };
 
@@ -1241,7 +943,7 @@ const getCart = async (customerId, options = {}) => {
         ci.id, ci.product_id, ci.quantity, ci.currency_code AS item_currency_code, ci.original_unit_price, ci.unit_price, ci.discount_amount, ci.discount_label,
         (ci.quantity * ci.unit_price) AS line_total,
         (ci.quantity * ci.original_unit_price) AS original_line_total,
-        p.name, p.slug, p.short_description, p.currency_code AS product_currency_code, p.seller_profile_id, p.category_id,
+        p.name, p.slug, p.short_description, p.currency_code AS product_currency_code, p.category_id,
         COALESCE(image.public_url, image.source_url) AS image_url,
         COALESCE(stock.available_units, 0) AS available_units
       FROM cart_items ci
@@ -1293,10 +995,6 @@ const getCart = async (customerId, options = {}) => {
 
   const subtotal = convertedItems.reduce((sum, item) => sum + Number(item.line_total), 0);
   const originalSubtotal = convertedItems.reduce((sum, item) => sum + Number(item.original_line_total), 0);
-  const sellerDiscountTotal = convertedItems.reduce(
-    (sum, item) => sum + Number(item.original_line_total) - Number(item.line_total),
-    0
-  );
 
   return {
     id: cart.id,
@@ -1305,7 +1003,7 @@ const getCart = async (customerId, options = {}) => {
     items: convertedItems,
     itemCount: convertedItems.reduce((sum, item) => sum + Number(item.quantity), 0),
     originalSubtotal: roundMoney(originalSubtotal),
-    sellerDiscountTotal: roundMoney(sellerDiscountTotal),
+    sellerDiscountTotal: 0,
     subtotal: roundMoney(subtotal),
   };
 };
@@ -1393,7 +1091,6 @@ const calculateQuote = async (customerId, payload = {}, options = {}) => {
 
   const [
     baseSubtotalAmount,
-    baseSellerDiscountAmount,
     baseTierDiscountAmount,
     basePromoDiscountAmount,
     baseShippingAmount,
@@ -1401,7 +1098,6 @@ const calculateQuote = async (customerId, payload = {}, options = {}) => {
     baseTotalAmount,
   ] = await Promise.all([
     converter.convert(cart.originalSubtotal, cart.currency_code, exchangeRateToBase.baseCurrencyCode),
-    converter.convert(cart.sellerDiscountTotal, cart.currency_code, exchangeRateToBase.baseCurrencyCode),
     converter.convert(tierDiscount, cart.currency_code, exchangeRateToBase.baseCurrencyCode),
     converter.convert(promoDiscount, cart.currency_code, exchangeRateToBase.baseCurrencyCode),
     converter.convert(shippingAmount, cart.currency_code, exchangeRateToBase.baseCurrencyCode),
@@ -1425,17 +1121,15 @@ const calculateQuote = async (customerId, payload = {}, options = {}) => {
     exchangeRateEffectiveAt: exchangeRateToBase.effectiveAt,
     originalSubtotalAmount: cart.originalSubtotal,
     subtotalAmount: cart.subtotal,
-    sellerDiscountAmount: cart.sellerDiscountTotal,
     tierDiscountAmount: tierDiscount,
     promoDiscountAmount: promoDiscount,
     shippingAmount: roundMoney(shippingAmount),
     taxAmount,
     totalAmount,
     baseSubtotalAmount,
-    baseSellerDiscountAmount,
     baseTierDiscountAmount,
     basePromoDiscountAmount,
-    baseDiscountAmount: roundMoney(baseSellerDiscountAmount + baseTierDiscountAmount + basePromoDiscountAmount),
+    baseDiscountAmount: roundMoney(baseTierDiscountAmount + basePromoDiscountAmount),
     baseShippingAmount,
     baseTaxAmount,
     baseTotalAmount,
@@ -1574,7 +1268,7 @@ const getAdvancedAnalyticsReport = async () => {
 };
 
 const getAdminDashboard = async () => {
-  const [overview, lowStock, recentOrders, topProducts, sellerHealth, platformSettings, reorderQueue, analytics, userDirectory, teamOverview, warehouseNetwork, exchangeRateSync, activityFeed] = await Promise.all([
+  const [overview, lowStock, recentOrders, topProducts, platformSettings, reorderQueue, analytics, userDirectory, teamOverview, warehouseNetwork, exchangeRateSync, activityFeed] = await Promise.all([
     query(
       `
         SELECT
@@ -1588,14 +1282,12 @@ const getAdminDashboard = async () => {
             WHERE placed_at >= NOW() - INTERVAL '30 days'
               AND order_status = ANY($1::text[])
           ) AS monthly_revenue,
-          (SELECT COUNT(*)::integer FROM seller_profiles) AS seller_count,
-          (SELECT COUNT(*)::integer FROM seller_profiles WHERE is_verified = TRUE) AS verified_sellers,
           (SELECT code FROM currencies WHERE is_base = TRUE ORDER BY code ASC LIMIT 1) AS base_currency_code,
           (
             SELECT COUNT(*)::integer
-            FROM seller_discount_campaigns
+            FROM promotions
             WHERE is_active = TRUE AND starts_at <= NOW() AND ends_at >= NOW()
-          ) AS active_discount_campaigns,
+          ) AS active_promotions,
           (
             SELECT COUNT(*)::integer
             FROM shipments
@@ -1608,36 +1300,6 @@ const getAdminDashboard = async () => {
     query('SELECT p.id, p.name, p.slug, SUM(i.quantity_on_hand)::integer AS available_units, MIN(i.reorder_point)::integer AS reorder_point FROM products p JOIN inventory i ON i.product_id = p.id GROUP BY p.id HAVING SUM(i.quantity_on_hand) <= MIN(i.reorder_point) + 8 ORDER BY available_units ASC LIMIT 6'),
     query("SELECT o.id, o.order_number, o.order_status, o.total_amount, o.currency_code, o.placed_at, CONCAT(c.first_name, ' ', c.last_name) AS customer_name FROM orders o JOIN customers c ON c.id = o.customer_id ORDER BY o.placed_at DESC LIMIT 6"),
     query('SELECT product_name AS name, total_sold AS units_sold, category_name, rank_in_category FROM product_sales_rankings ORDER BY total_sold DESC, product_name ASC LIMIT 5'),
-    query(
-      `
-        SELECT
-          sp.id,
-          sp.store_name,
-          sp.slug,
-          sp.is_verified,
-          (SELECT COUNT(*)::integer FROM products p WHERE p.seller_profile_id = sp.id) AS product_count,
-          (
-            SELECT COALESCE(SUM(oi.base_line_total), 0)::numeric(12,2)
-            FROM order_items oi
-            JOIN products p ON p.id = oi.product_id
-            JOIN orders o ON o.id = oi.order_id
-            WHERE p.seller_profile_id = sp.id
-              AND o.order_status = ANY($1::text[])
-          ) AS gross_revenue,
-          (
-            SELECT COUNT(*)::integer
-            FROM seller_discount_campaigns sdc
-            WHERE sdc.seller_profile_id = sp.id
-              AND sdc.is_active = TRUE
-              AND sdc.starts_at <= NOW()
-              AND sdc.ends_at >= NOW()
-          ) AS active_discount_count
-        FROM seller_profiles sp
-        ORDER BY gross_revenue DESC, sp.store_name ASC
-        LIMIT 6
-      `,
-      [ORDER_REVENUE_STATUSES]
-    ),
     getPlatformSettings(),
     getOpenReorderQueue(),
     getAdvancedAnalyticsReport(),
@@ -1679,7 +1341,6 @@ const getAdminDashboard = async () => {
     lowStock: lowStock.rows,
     recentOrders: recentOrders.rows.map((row) => mapMoneyRow(row, ['total_amount'])),
     topProducts: topProducts.rows,
-    sellerHealth: sellerHealth.rows.map((row) => mapMoneyRow(row, ['gross_revenue'])),
     platformSettings,
     reorderQueue,
     analytics,
@@ -1751,7 +1412,7 @@ const getHomeData = async () => {
   };
 };
 
-const buildBootstrap = async (currentUser) => {
+const buildBootstrap = async (currentUser, geo = null) => {
   const [home, lookups, demo, products, operationalSettings] = await Promise.all([
     getHomeData(),
     getLookups(),
@@ -1759,6 +1420,14 @@ const buildBootstrap = async (currentUser) => {
     listProducts(),
     getOperationalSettings(),
   ]);
+
+  // Resolve preferred currency: geo-detected → base currency fallback
+  const geoCurrencyCode = geo?.currencyCode || null;
+  const baseCurrencyCode = lookups.currencies.find((c) => c.is_base)?.code || 'USD';
+  const supportedCodes = new Set(lookups.currencies.map((c) => c.code));
+  const preferredCurrencyCode = (geoCurrencyCode && supportedCodes.has(geoCurrencyCode))
+    ? geoCurrencyCode
+    : baseCurrencyCode;
 
   const payload = {
     site: {
@@ -1792,7 +1461,7 @@ const buildBootstrap = async (currentUser) => {
           links: [
             { label: 'Order tracking', page: 'access' },
             { label: 'Fulfillment dashboard', page: 'dashboard' },
-            { label: 'Seller workspace', page: 'dashboard' },
+            { label: 'Staff workspace', page: 'dashboard' },
             { label: 'Checkout flow', page: 'checkout' },
           ],
         },
@@ -1827,21 +1496,23 @@ const buildBootstrap = async (currentUser) => {
     session: currentUser
       ? {
           userId: currentUser.user_id,
+          customerId: currentUser.customer_id || null,
           fullName: currentUser.full_name,
           firstName: currentUser.first_name || currentUser.full_name?.split(' ')[0] || '',
           lastName: currentUser.last_name || '',
           email: currentUser.email,
-          city: currentUser.city || '',
-          country: currentUser.country || '',
           roleName: currentUser.role_name,
-          customerId: currentUser.customer_id,
-          sellerProfileId: currentUser.seller_profile_id,
-          storeName: currentUser.store_name || '',
           tierName: currentUser.tier_name || '',
           discountRate: Number(currentUser.discount_rate || 0),
           capabilities: resolveSessionCapabilities(currentUser),
         }
       : null,
+    geo: {
+      countryCode: geo?.countryCode || 'US',
+      currencyCode: preferredCurrencyCode,
+      source: geo?.source || 'default',
+    },
+    preferredCurrencyCode,
   };
 
   if (!currentUser) {
@@ -1859,11 +1530,11 @@ const buildBootstrap = async (currentUser) => {
     payload.checkout = checkout;
   }
 
-  if (['admin', 'merchandising_manager'].includes(currentUser.role_name)) {
+  if (['admin', 'catalog_manager', 'marketing_manager', 'finance_manager'].includes(currentUser.role_name)) {
     payload.adminDashboard = await getAdminDashboard();
   }
 
-  if (['admin', 'operations_manager'].includes(currentUser.role_name)) {
+  if (['admin', 'order_manager', 'inventory_manager', 'shipping_coordinator'].includes(currentUser.role_name)) {
     payload.operationsDashboard = await getOperationsDashboard();
   }
 
@@ -2091,13 +1762,13 @@ const createOrder = async ({ currentUser, payload }) => {
       `
         INSERT INTO orders (
           customer_id, order_number, currency_code, base_currency_code, exchange_rate_to_base, order_status, payment_method, shipping_method, subtotal_amount,
-          seller_discount_amount, tier_discount_amount, promo_discount_amount, discount_amount,
+          discount_amount,
           shipping_amount, tax_amount, total_amount,
-          base_subtotal_amount, base_seller_discount_amount, base_tier_discount_amount, base_promo_discount_amount, base_discount_amount,
+          base_subtotal_amount, base_discount_amount,
           base_shipping_amount, base_tax_amount, base_total_amount,
           promo_code, shipping_address, billing_address, notes, delivery_eta
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26::jsonb, $27::jsonb, $28, $29)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb, $21::jsonb, $22, $23)
         RETURNING id, order_number, order_status, total_amount, currency_code, delivery_eta
       `,
       [
@@ -2110,18 +1781,12 @@ const createOrder = async ({ currentUser, payload }) => {
         selectedPayment.id,
         quote.shippingMethod.id,
         quote.originalSubtotalAmount,
-        quote.sellerDiscountAmount,
-        quote.tierDiscountAmount,
-        quote.promoDiscountAmount,
-        quote.sellerDiscountAmount + quote.tierDiscountAmount + quote.promoDiscountAmount,
+        quote.tierDiscountAmount + quote.promoDiscountAmount,
         quote.shippingAmount,
         quote.taxAmount,
         quote.totalAmount,
         quote.baseSubtotalAmount,
-        quote.baseSellerDiscountAmount,
-        quote.baseTierDiscountAmount,
-        quote.basePromoDiscountAmount,
-        quote.baseDiscountAmount,
+        quote.baseTierDiscountAmount + quote.basePromoDiscountAmount,
         quote.baseShippingAmount,
         quote.baseTaxAmount,
         quote.baseTotalAmount,
@@ -2261,11 +1926,28 @@ const createOrder = async ({ currentUser, payload }) => {
     await client.query("INSERT INTO carts (customer_id, currency_code, status) VALUES ($1, $2, 'ACTIVE')", [currentUser.customer_id, quote.orderCurrencyCode]);
     await refreshAnalyticsSnapshots(client);
 
-    return {
+    const orderResult = {
       ...mapMoneyRow(orderInsert.rows[0], ['total_amount']),
       trackingNumber: shipmentInsert.rows[0].tracking_number,
       trackingUrl: shipmentInsert.rows[0].tracking_url,
     };
+
+    // Fire-and-forget order confirmation email
+    const customerEmailResult = await client.query(
+      'SELECT u.email, u.full_name FROM users u JOIN customers c ON c.user_id = u.id WHERE c.id = $1 LIMIT 1',
+      [currentUser.customer_id]
+    );
+    if (customerEmailResult.rowCount > 0) {
+      const { email, full_name: fullName } = customerEmailResult.rows[0];
+      sendOrderConfirmationEmail({
+        to: email,
+        fullName,
+        order: { ...orderResult, shipping_amount: quote.shippingAmount, tax_amount: quote.taxAmount, currency_code: quote.orderCurrencyCode },
+        items: quote.cart.items,
+      }).catch(() => {});
+    }
+
+    return orderResult;
   }, { isolationLevel: 'SERIALIZABLE' });
 };
 
@@ -2643,9 +2325,6 @@ const getOrderDetail = async (orderNumber, actor = null) => {
         shipping_method,
         exchange_rate_to_base,
         subtotal_amount,
-        seller_discount_amount,
-        tier_discount_amount,
-        promo_discount_amount,
         discount_amount,
         shipping_amount,
         tax_amount,
@@ -2653,9 +2332,6 @@ const getOrderDetail = async (orderNumber, actor = null) => {
         currency_code,
         base_currency_code,
         base_subtotal_amount,
-        base_seller_discount_amount,
-        base_tier_discount_amount,
-        base_promo_discount_amount,
         base_discount_amount,
         base_shipping_amount,
         base_tax_amount,
@@ -2704,16 +2380,10 @@ const getOrderDetail = async (orderNumber, actor = null) => {
   } = order.rows[0];
   const normalizedOrderFields = mapMoneyRow(orderFields, [
     'subtotal_amount',
-    'seller_discount_amount',
-    'tier_discount_amount',
-    'promo_discount_amount',
     'discount_amount',
     'shipping_amount',
     'tax_amount',
     'base_subtotal_amount',
-    'base_seller_discount_amount',
-    'base_tier_discount_amount',
-    'base_promo_discount_amount',
     'base_discount_amount',
     'base_shipping_amount',
     'base_tax_amount',
@@ -2760,22 +2430,9 @@ const getOrderDetail = async (orderNumber, actor = null) => {
   };
 };
 
-const resolveManagedSellerProfileId = async ({ actor, requestedSellerProfileId }) => {
-  if (requestedSellerProfileId) {
-    const seller = await query('SELECT id FROM seller_profiles WHERE id = $1 LIMIT 1', [requestedSellerProfileId]);
-    assert(seller.rowCount > 0, 'Seller profile not found.', 404);
-    return requestedSellerProfileId;
-  }
-
-  const defaultProfile = await query('SELECT id FROM seller_profiles ORDER BY is_verified DESC, id ASC LIMIT 1');
-  assert(defaultProfile.rowCount > 0, 'A managed catalog profile is required before products can be created.', 500);
-  return defaultProfile.rows[0].id;
-};
-
-const assertSellerCanManageProduct = async ({ actor, productId }) => {
-  const result = await query('SELECT seller_profile_id FROM products WHERE id = $1 LIMIT 1', [productId]);
+const assertProductExists = async ({ productId }) => {
+  const result = await query('SELECT id FROM products WHERE id = $1 LIMIT 1', [productId]);
   assert(result.rowCount > 0, 'Product not found.', 404);
-
   return result.rows[0];
 };
 
@@ -2788,11 +2445,6 @@ const createProduct = async ({ actor, payload }) => {
   assert(isNonEmptyString(payload.longDescription), 'Long description is required.');
   assert(asNumber(payload.unitPrice, NaN) >= 0, 'Unit price is required.');
 
-  const sellerProfileId = await resolveManagedSellerProfileId({
-    actor,
-    requestedSellerProfileId: payload.sellerProfileId,
-  });
-
   return withTransaction(async (client) => {
     const normalizedSlug = normalizeSlug(payload.slug);
     const normalizedPrimaryImageUrl = normalizeUrl(payload.primaryImageUrl);
@@ -2804,12 +2456,11 @@ const createProduct = async ({ actor, payload }) => {
 
     const insert = await client.query(
       `
-        INSERT INTO products (seller_profile_id, category_id, sku, name, slug, short_description, long_description, unit_price, currency_code, is_featured, launch_month)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO products (category_id, sku, name, slug, short_description, long_description, unit_price, currency_code, is_featured, launch_month)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, slug
       `,
       [
-        sellerProfileId,
         payload.categoryId,
         payload.sku.trim(),
         payload.name.trim(),
@@ -2859,7 +2510,6 @@ const createProduct = async ({ actor, payload }) => {
       metadata: {
         sku: payload.sku.trim(),
         slug: normalizedSlug,
-        sellerProfileId,
         categoryId: payload.categoryId,
       },
     });
@@ -2868,68 +2518,31 @@ const createProduct = async ({ actor, payload }) => {
   });
 };
 
-const createSellerDiscountCampaign = async ({ actor, payload }) => {
+const createDiscountPromotion = async ({ actor, payload }) => {
   assert(isNonEmptyString(payload.name), 'Discount name is required.');
   assert(isNonEmptyString(payload.discountType), 'discountType is required.');
-  assert(['PERCENT', 'FIXED'].includes(String(payload.discountType).toUpperCase()), 'discountType must be PERCENT or FIXED.');
-  assert(isNonEmptyString(payload.appliesTo), 'appliesTo is required.');
-  assert(['ALL_PRODUCTS', 'CATEGORY', 'PRODUCT'].includes(String(payload.appliesTo).toUpperCase()), 'appliesTo must be ALL_PRODUCTS, CATEGORY, or PRODUCT.');
+  assert(['PERCENT', 'FIXED', 'SHIPPING'].includes(String(payload.discountType).toUpperCase()), 'discountType must be PERCENT, FIXED, or SHIPPING.');
   assert(asNumber(payload.discountValue, NaN) > 0, 'discountValue must be greater than zero.');
+  assert(isNonEmptyString(payload.code), 'Promo code is required.');
 
-  const sellerProfileId = await resolveManagedSellerProfileId({
-    actor,
-    requestedSellerProfileId: payload.sellerProfileId,
-  });
-
-  const appliesTo = String(payload.appliesTo).toUpperCase();
+  const discountType = String(payload.discountType).toUpperCase();
   const startsAt = payload.startsAt || new Date().toISOString();
   const endsAt = payload.endsAt || addDays(new Date(), 30).toISOString();
   assert(new Date(endsAt).getTime() > new Date(startsAt).getTime(), 'endsAt must be later than startsAt.');
 
-  if (appliesTo === 'PRODUCT') {
-    assert(payload.productId, 'productId is required for PRODUCT discounts.');
-    const product = await query('SELECT seller_profile_id FROM products WHERE id = $1 LIMIT 1', [payload.productId]);
-    assert(product.rowCount > 0, 'Product not found.', 404);
-    assert(Number(product.rows[0].seller_profile_id) === Number(sellerProfileId), 'Discount product must belong to the selected seller.', 403);
-  }
-
-  if (appliesTo === 'CATEGORY') {
-    assert(payload.categoryId, 'categoryId is required for CATEGORY discounts.');
-    const category = await query('SELECT id FROM categories WHERE id = $1 LIMIT 1', [payload.categoryId]);
-    assert(category.rowCount > 0, 'Category not found.', 404);
-  }
-
   const result = await query(
     `
-      INSERT INTO seller_discount_campaigns (
-        seller_profile_id,
-        name,
-        code,
-        description,
-        discount_type,
-        discount_value,
-        applies_to,
-        category_id,
-        product_id,
-        minimum_quantity,
-        starts_at,
-        ends_at,
-        is_active
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE)
-      RETURNING id, seller_profile_id, name, code, description, discount_type, discount_value, applies_to, category_id, product_id, minimum_quantity, starts_at, ends_at, is_active
+      INSERT INTO promotions (code, title, description, discount_type, discount_value, minimum_order_amount, is_active, starts_at, ends_at)
+      VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
+      RETURNING id, code, title, description, discount_type, discount_value, minimum_order_amount, is_active, starts_at, ends_at
     `,
     [
-      sellerProfileId,
+      payload.code.trim().toUpperCase(),
       payload.name.trim(),
-      payload.code ? payload.code.trim().toUpperCase() : null,
       payload.description || null,
-      String(payload.discountType).toUpperCase(),
+      discountType,
       Number(payload.discountValue),
-      appliesTo,
-      appliesTo === 'CATEGORY' ? Number(payload.categoryId) : null,
-      appliesTo === 'PRODUCT' ? Number(payload.productId) : null,
-      Math.max(1, asNumber(payload.minimumQuantity, 1)),
+      Math.max(0, asNumber(payload.minimumOrderAmount, 0)),
       startsAt,
       endsAt,
     ]
@@ -2939,18 +2552,16 @@ const createSellerDiscountCampaign = async ({ actor, payload }) => {
     actorUserId: actor?.user_id,
     actorRole: actor?.role_name,
     action: 'discount.created',
-    entityType: 'discount_campaign',
+    entityType: 'promotion',
     entityId: result.rows[0].id,
-    summary: `Created discount campaign ${payload.name.trim()}.`,
+    summary: `Created promotion ${payload.name.trim()} (${payload.code.trim().toUpperCase()}).`,
     metadata: {
-      sellerProfileId,
-      appliesTo,
-      discountType: String(payload.discountType).toUpperCase(),
+      discountType,
       discountValue: Number(payload.discountValue),
     },
   });
 
-  return mapMoneyRow(result.rows[0], ['discount_value']);
+  return mapMoneyRow(result.rows[0], ['discount_value', 'minimum_order_amount']);
 };
 
 const updatePlatformSettings = async ({ actor = null, payload }) => {
@@ -3015,7 +2626,7 @@ const attachProductImage = async ({ actor, productId, publicUrl, sourceUrl, altT
   const resolvedIsPrimary = normalizeBoolean(isPrimary, false);
 
   assert(normalizedPublicUrl || normalizedSourceUrl, 'Image URL is required.');
-  await assertSellerCanManageProduct({ actor, productId });
+  await assertProductExists({ productId });
 
   return withTransaction(async (client) => {
     if (resolvedIsPrimary) {
@@ -3132,6 +2743,36 @@ const updateShipmentStatus = async ({ shipmentId, status, location, note, actorR
         note: note || null,
       },
     });
+
+    // Send transactional emails for key shipment milestones
+    if (['IN_TRANSIT', 'DELIVERED'].includes(normalizedStatus)) {
+      const shipmentData = await client.query(
+        `SELECT s.tracking_number, s.tracking_url, s.carrier,
+                o.order_number, o.delivery_eta, o.currency_code,
+                u.email, u.full_name
+         FROM shipments s
+         JOIN orders o ON o.id = s.order_id
+         JOIN customers c ON c.id = o.customer_id
+         JOIN users u ON u.id = c.user_id
+         WHERE s.id = $1 LIMIT 1`,
+        [shipmentId]
+      );
+      if (shipmentData.rowCount > 0) {
+        const row = shipmentData.rows[0];
+        if (normalizedStatus === 'IN_TRANSIT') {
+          sendShipmentDispatchedEmail({
+            to: row.email, fullName: row.full_name,
+            order: { order_number: row.order_number, delivery_eta: row.delivery_eta },
+            shipment: { tracking_number: row.tracking_number, tracking_url: row.tracking_url, carrier: row.carrier },
+          }).catch(() => {});
+        } else if (normalizedStatus === 'DELIVERED') {
+          sendDeliveryConfirmationEmail({
+            to: row.email, fullName: row.full_name,
+            order: { order_number: row.order_number },
+          }).catch(() => {});
+        }
+      }
+    }
   });
 };
 
@@ -3140,7 +2781,7 @@ const signProductImageUpload = async ({ actor, productId, fileName, mimeType }) 
   assert(isNonEmptyString(fileName), 'fileName is required.');
   assert(isNonEmptyString(mimeType), 'mimeType is required.');
   assert(ALLOWED_IMAGE_MIME_TYPES.has(mimeType), 'Only AVIF, GIF, JPEG, PNG, and WEBP images are supported.');
-  await assertSellerCanManageProduct({ actor, productId });
+  await assertProductExists({ productId });
 
   const objectPath = `products/${productId}/${crypto.randomUUID()}.${getFileExtension(fileName, mimeType)}`;
   const image = await query(
@@ -3158,7 +2799,7 @@ const signProductImageUpload = async ({ actor, productId, fileName, mimeType }) 
 
 const completeProductImageUpload = async ({ actor, imageId, productId, publicUrl, altText, isPrimary }) => {
   assert(productId, 'productId is required.');
-  await assertSellerCanManageProduct({ actor, productId });
+  await assertProductExists({ productId });
 
   return withTransaction(async (client) => {
     const existingImage = await client.query(
@@ -3207,22 +2848,92 @@ const completeProductImageUpload = async ({ actor, imageId, productId, publicUrl
   });
 };
 
+const cancelOrder = async ({ orderNumber, customerId }) => {
+  return withTransaction(async (client) => {
+    const order = await client.query(
+      `SELECT id, order_status, customer_id FROM orders WHERE order_number = $1 LIMIT 1`,
+      [orderNumber]
+    );
+    assert(order.rowCount > 0, 'Order not found.', 404);
+    assert(Number(order.rows[0].customer_id) === Number(customerId), 'You cannot cancel another customer\'s order.', 403);
+    assert(
+      ['PENDING', 'PROCESSING'].includes(order.rows[0].order_status),
+      'Only pending or processing orders can be cancelled.',
+      409
+    );
+
+    const orderId = order.rows[0].id;
+    await client.query('UPDATE orders SET order_status = $1 WHERE id = $2', ['CANCELLED', orderId]);
+    await client.query(
+      'INSERT INTO order_status_events (order_id, status, note, actor_role) VALUES ($1, $2, $3, $4)',
+      [orderId, 'CANCELLED', 'Cancelled by customer.', 'customer']
+    );
+
+    // Restore inventory
+    const items = await client.query(
+      `SELECT oi.product_id, oi.quantity, s.warehouse_id
+       FROM order_items oi
+       JOIN shipments s ON s.order_id = oi.order_id
+       WHERE oi.order_id = $1`,
+      [orderId]
+    );
+    for (const item of items.rows) {
+      if (item.warehouse_id) {
+        await client.query(
+          'UPDATE inventory SET quantity_on_hand = quantity_on_hand + $1 WHERE product_id = $2 AND warehouse_id = $3',
+          [item.quantity, item.product_id, item.warehouse_id]
+        );
+      }
+    }
+
+    await refreshAnalyticsSnapshots(client);
+    return { success: true, orderNumber };
+  });
+};
+
+const getSellerProfileBySlug = async (slug) => {
+  const result = await query('SELECT id FROM seller_profiles WHERE slug = $1 AND is_active = TRUE LIMIT 1', [slug]);
+  if (result.rowCount === 0) return null;
+  return getSellerProfile(result.rows[0].id);
+};
+
+const getCustomerOrders = async ({ customerId, limit = 20, offset = 0 }) => {
+  const safeLimit  = Math.min(100, Math.max(1, Number(limit)  || 20));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+
+  const [orders, total] = await Promise.all([
+    query(
+      `SELECT order_number, order_status, total_amount, currency_code, placed_at, delivery_eta, shipping_method
+       FROM orders WHERE customer_id = $1
+       ORDER BY placed_at DESC LIMIT $2 OFFSET $3`,
+      [customerId, safeLimit, safeOffset]
+    ),
+    query('SELECT COUNT(*)::integer AS total FROM orders WHERE customer_id = $1', [customerId]),
+  ]);
+
+  return {
+    orders: orders.rows.map((row) => mapMoneyRow(row, ['total_amount'])),
+    pagination: { limit: safeLimit, offset: safeOffset, total: Number(total.rows[0]?.total || 0) },
+  };
+};
+
 module.exports = {
   addCartItem,
   attachProductImage,
   buildBootstrap,
   calculateQuote,
+  cancelOrder,
   completeProductImageUpload,
   createShipmentEvent,
   createAddress,
-  createSellerDiscountCampaign,
+  createDiscountPromotion,
   createOrder,
   createProduct,
   createReview,
   getAdvancedAnalyticsReport,
-  getSellerProfile,
   getAdminDashboard,
   getCart,
+  getCustomerOrders,
   getCustomerProfile,
   getHomeData,
   getOperationsDashboard,

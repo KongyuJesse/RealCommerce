@@ -1,8 +1,13 @@
 INSERT INTO roles (name, description) VALUES
-  ('admin', 'Full access to platform administration and configuration.'),
-  ('operations_manager', 'Oversees fulfilment, shipments, and inventory health.'),
-  ('merchandising_manager', 'Owns assortment, pricing, and category strategy.'),
-  ('customer', 'Customer account for ordering, reviewing, and account management.');
+  ('admin', 'Full platform access - system configuration, user management, and all operations.'),
+  ('inventory_manager', 'Manages warehouse operations, stock levels, and reorder workflows.'),
+  ('order_manager', 'Processes orders, manages fulfillment, and handles order-related issues.'),
+  ('customer_support', 'Assists customers with inquiries, returns, and account issues.'),
+  ('marketing_manager', 'Manages promotions, campaigns, content, and customer engagement.'),
+  ('finance_manager', 'Oversees pricing, payments, refunds, and financial reporting.'),
+  ('catalog_manager', 'Manages product catalog, descriptions, images, and categories.'),
+  ('shipping_coordinator', 'Coordinates shipments, tracks deliveries, and manages carriers.'),
+  ('customer', 'Customer account for browsing, ordering, and account management.');
 
 INSERT INTO customer_tiers (name, discount_rate, min_lifetime_value, benefits) VALUES
   ('Starter', 0.00, 0.00, 'Access to base catalog and standard support.'),
@@ -54,10 +59,13 @@ INSERT INTO users (role_id, full_name, email, password_hash, last_login_at) VALU
   (1, 'Jesse Kongyu', 'jesse@realcommerce.com', 'scrypt$0db45cab019120cb60ed7361a35579d0$5d6f9a7bd606fc0fd1dd40f09ab5cc08a08025c78a9d3980ee24ca71f6cf26d128d2e657b1028f2de8d67caf9c4654831e2fde311509a0b4cd99fb0fb91844b9', '2026-03-08T08:10:00Z'),
   (2, 'Ada Osei', 'ada@realcommerce.com', 'scrypt$529121d4e7907f789f5cb8527bca1d97$1bc2dce0734358c227b77c760f82ef3d86783964e1b5dd52d713588b07c3ca8e65d4f754360082577aa8636e38e1fb843fc07f6efe240605100eb36fb4289deb', '2026-03-08T07:20:00Z'),
   (3, 'Maya Cole', 'maya@realcommerce.com', 'scrypt$78de9a165c32d53e5f9086c7436e371d$d9f3bef1e638e7efaae83d30e75b41ed38d7c99ec1ae95319c8c31462d49aa74e1294aa0720ddb7c8f84c00905404228225ab0606cfcf6a7ae487eecc2f193cf', '2026-03-07T18:30:00Z'),
-  (4, 'Lionel Grant', 'lionel@bluehorizon.com', 'scrypt$4261dd7f1624b73d9301a7ee2185c0d7$602e1feca49e3063fc7a6908fb150be62a2455b7c6c1016470edfa50f5b83018fbddb834059674f96473bb63332435bee423e14bf732294c50220a04ba642a14', '2026-03-06T13:15:00Z'),
-  (4, 'Sofia Nwosu', 'sofia@vitaretail.com', 'scrypt$79aaa411cf96520c3a63cb4de7add75c$8d6595b9273f7fa4ec4f1b057a1b19681d23ceebe155d15872fe77d24712fd630a95a3afaed0f9f31a29126c7dd4e88c013b09db5dd3b44a7414ca9297c794ff', '2026-03-07T11:00:00Z'),
-  (3, 'Nadia Mensah', 'nadia@studioforge.shop', 'scrypt$0db45cab019120cb60ed7361a35579d0$5d6f9a7bd606fc0fd1dd40f09ab5cc08a08025c78a9d3980ee24ca71f6cf26d128d2e657b1028f2de8d67caf9c4654831e2fde311509a0b4cd99fb0fb91844b9', '2026-03-08T09:45:00Z'),
-  (3, 'Kojo Asare', 'kojo@mobilityworks.shop', 'scrypt$529121d4e7907f789f5cb8527bca1d97$1bc2dce0734358c227b77c760f82ef3d86783964e1b5dd52d713588b07c3ca8e65d4f754360082577aa8636e38e1fb843fc07f6efe240605100eb36fb4289deb', '2026-03-08T09:10:00Z');
+  (4, 'Tunde Adeyemi', 'tunde@realcommerce.com', 'scrypt$4261dd7f1624b73d9301a7ee2185c0d7$602e1feca49e3063fc7a6908fb150be62a2455b7c6c1016470edfa50f5b83018fbddb834059674f96473bb63332435bee423e14bf732294c50220a04ba642a14', '2026-03-07T14:00:00Z'),
+  (5, 'Amara Okafor', 'amara@realcommerce.com', 'scrypt$79aaa411cf96520c3a63cb4de7add75c$8d6595b9273f7fa4ec4f1b057a1b19681d23ceebe155d15872fe77d24712fd630a95a3afaed0f9f31a29126c7dd4e88c013b09db5dd3b44a7414ca9297c794ff', '2026-03-07T11:00:00Z'),
+  (6, 'Chen Wei', 'chen@realcommerce.com', 'scrypt$0db45cab019120cb60ed7361a35579d0$5d6f9a7bd606fc0fd1dd40f09ab5cc08a08025c78a9d3980ee24ca71f6cf26d128d2e657b1028f2de8d67caf9c4654831e2fde311509a0b4cd99fb0fb91844b9', '2026-03-08T09:45:00Z'),
+  (7, 'Sarah Johnson', 'sarah@realcommerce.com', 'scrypt$529121d4e7907f789f5cb8527bca1d97$1bc2dce0734358c227b77c760f82ef3d86783964e1b5dd52d713588b07c3ca8e65d4f754360082577aa8636e38e1fb843fc07f6efe240605100eb36fb4289deb', '2026-03-08T09:10:00Z'),
+  (8, 'David Martinez', 'david@realcommerce.com', 'scrypt$78de9a165c32d53e5f9086c7436e371d$d9f3bef1e638e7efaae83d30e75b41ed38d7c99ec1ae95319c8c31462d49aa74e1294aa0720ddb7c8f84c00905404228225ab0606cfcf6a7ae487eecc2f193cf', '2026-03-07T16:30:00Z'),
+  (9, 'Lionel Grant', 'lionel@bluehorizon.com', 'scrypt$4261dd7f1624b73d9301a7ee2185c0d7$602e1feca49e3063fc7a6908fb150be62a2455b7c6c1016470edfa50f5b83018fbddb834059674f96473bb63332435bee423e14bf732294c50220a04ba642a14', '2026-03-06T13:15:00Z'),
+  (9, 'Sofia Nwosu', 'sofia@vitaretail.com', 'scrypt$79aaa411cf96520c3a63cb4de7add75c$8d6595b9273f7fa4ec4f1b057a1b19681d23ceebe155d15872fe77d24712fd630a95a3afaed0f9f31a29126c7dd4e88c013b09db5dd3b44a7414ca9297c794ff', '2026-03-07T11:00:00Z');
 
 INSERT INTO categories (name, slug, description, hero_copy, is_featured) VALUES
   ('Workspace Systems', 'workspace-systems', 'Furniture and devices designed for high-output teams.', 'Flexible setups for founders, studios, and distributed operators.', TRUE),
@@ -66,12 +74,7 @@ INSERT INTO categories (name, slug, description, hero_copy, is_featured) VALUES
   ('Urban Mobility', 'urban-mobility', 'Compact personal transport for fast city movement.', 'Durable transit products for dense, fast-moving neighborhoods.', FALSE),
   ('Creator Gear', 'creator-gear', 'Portable tools for production, streaming, and hybrid work.', 'Clean hardware choices for video, audio, and maker setups.', TRUE);
 
-INSERT INTO seller_profiles (user_id, store_name, slug, description, support_email, phone, city, country, payout_currency_code, is_verified) VALUES
-  (6, 'Studio Forge', 'studio-forge', 'Workspace and creator gear curated for premium hybrid teams.', 'support@studioforge.shop', '+233-30-555-2101', 'Accra', 'Ghana', 'USD', TRUE),
-  (7, 'Mobility Works', 'mobility-works', 'Urban mobility hardware with a focus on durability and serviceability.', 'hello@mobilityworks.shop', '+234-1-555-2102', 'Lagos', 'Nigeria', 'USD', TRUE);
-
 INSERT INTO products (
-  seller_profile_id,
   category_id,
   sku,
   name,
@@ -84,31 +87,14 @@ INSERT INTO products (
   is_featured,
   launch_month
 ) VALUES
-  (1, 1, 'RC-DSK-001', 'Atlas Standing Desk', 'atlas-standing-desk', 'Electric sit-stand desk with cable channel and memory presets.', 'Atlas pairs quiet dual motors with a hardened bamboo top so operators can shift from planning to fulfilment reviews without losing desk stability.', 899.00, 'USD', 'ACTIVE', TRUE, 'January 2026'),
-  (1, 1, 'RC-CHR-002', 'Halo Task Chair', 'halo-task-chair', 'Breathable ergonomic chair tuned for long planning sessions.', 'Halo combines lumbar support, mesh cooling, and subtle posture guidance for teams running commerce operations all day.', 369.00, 'USD', 'ACTIVE', FALSE, 'February 2026'),
-  (1, 2, 'RC-LMP-003', 'Pulse Smart Lamp', 'pulse-smart-lamp', 'Adaptive lighting with scene presets and occupancy awareness.', 'Pulse shifts brightness automatically through work, evening, and reading modes while syncing across connected spaces.', 129.00, 'USD', 'ACTIVE', TRUE, 'December 2025'),
-  (1, 5, 'RC-AUD-004', 'Drift Noise-Canceling Buds', 'drift-noise-canceling-buds', 'Compact earbuds for creators and focused operators.', 'Drift delivers low-latency audio, clear microphones, and enough battery for full production days on the move.', 189.00, 'USD', 'ACTIVE', TRUE, 'January 2026'),
-  (1, 3, 'RC-WEL-005', 'Tempo Recovery Massager', 'tempo-recovery-massager', 'Portable recovery tool with programmable pressure bands.', 'Tempo helps remote teams and creators reset between sessions with three calibrated intensity profiles and travel-friendly design.', 249.00, 'USD', 'ACTIVE', TRUE, 'November 2025'),
-  (2, 4, 'RC-SCO-006', 'Rover Fold E-Scooter', 'rover-fold-e-scooter', 'Foldable commuter scooter built for short urban loops.', 'Rover packs a stable deck, regenerative braking, and durable range for repeat city routes between office, studio, and warehouse.', 1499.00, 'USD', 'ACTIVE', TRUE, 'March 2026');
+  (1, 'RC-DSK-001', 'Atlas Standing Desk', 'atlas-standing-desk', 'Electric sit-stand desk with cable channel and memory presets.', 'Atlas pairs quiet dual motors with a hardened bamboo top so operators can shift from planning to fulfilment reviews without losing desk stability.', 899.00, 'USD', 'ACTIVE', TRUE, 'January 2026'),
+  (1, 'RC-CHR-002', 'Halo Task Chair', 'halo-task-chair', 'Breathable ergonomic chair tuned for long planning sessions.', 'Halo combines lumbar support, mesh cooling, and subtle posture guidance for teams running commerce operations all day.', 369.00, 'USD', 'ACTIVE', FALSE, 'February 2026'),
+  (2, 'RC-LMP-003', 'Pulse Smart Lamp', 'pulse-smart-lamp', 'Adaptive lighting with scene presets and occupancy awareness.', 'Pulse shifts brightness automatically through work, evening, and reading modes while syncing across connected spaces.', 129.00, 'USD', 'ACTIVE', TRUE, 'December 2025'),
+  (5, 'RC-AUD-004', 'Drift Noise-Canceling Buds', 'drift-noise-canceling-buds', 'Compact earbuds for creators and focused operators.', 'Drift delivers low-latency audio, clear microphones, and enough battery for full production days on the move.', 189.00, 'USD', 'ACTIVE', TRUE, 'January 2026'),
+  (3, 'RC-WEL-005', 'Tempo Recovery Massager', 'tempo-recovery-massager', 'Portable recovery tool with programmable pressure bands.', 'Tempo helps remote teams and creators reset between sessions with three calibrated intensity profiles and travel-friendly design.', 249.00, 'USD', 'ACTIVE', TRUE, 'November 2025'),
+  (4, 'RC-SCO-006', 'Rover Fold E-Scooter', 'rover-fold-e-scooter', 'Foldable commuter scooter built for short urban loops.', 'Rover packs a stable deck, regenerative braking, and durable range for repeat city routes between office, studio, and warehouse.', 1499.00, 'USD', 'ACTIVE', TRUE, 'March 2026');
 
-INSERT INTO seller_discount_campaigns (
-  seller_profile_id,
-  name,
-  code,
-  description,
-  discount_type,
-  discount_value,
-  applies_to,
-  category_id,
-  product_id,
-  minimum_quantity,
-  starts_at,
-  ends_at,
-  is_active
-) VALUES
-  (1, 'Workspace Refresh', 'REFRESH12', 'Store-wide savings for Studio Forge core listings.', 'PERCENT', 12.00, 'ALL_PRODUCTS', NULL, NULL, 1, '2026-03-01T00:00:00Z', '2026-12-31T23:59:59Z', TRUE),
-  (1, 'Desk Launch Price', 'ATLAS150', 'Launch support on the Atlas desk line.', 'FIXED', 150.00, 'PRODUCT', NULL, 1, 1, '2026-03-01T00:00:00Z', '2026-09-30T23:59:59Z', TRUE),
-  (2, 'Mobility Week', 'RIDE8', 'Seasonal city mobility promotion.', 'PERCENT', 8.00, 'CATEGORY', 4, NULL, 1, '2026-03-01T00:00:00Z', '2026-10-31T23:59:59Z', TRUE);
+
 
 INSERT INTO product_images (
   product_id,
@@ -185,8 +171,8 @@ INSERT INTO inventory (product_id, warehouse_id, quantity_on_hand, reorder_point
   (6, 3, 16, 4, 2, '2026-03-08T07:45:00Z');
 
 INSERT INTO customers (user_id, tier_id, company_name, first_name, last_name, email, phone, city, country) VALUES
-  (4, 2, 'Blue Horizon Studio', 'Lionel', 'Grant', 'lionel@bluehorizon.com', '+234-800-555-0101', 'Lagos', 'Nigeria'),
-  (5, 3, 'VitaRetail Labs', 'Sofia', 'Nwosu', 'sofia@vitaretail.com', '+234-800-555-0102', 'Abuja', 'Nigeria'),
+  (9, 2, 'Blue Horizon Studio', 'Lionel', 'Grant', 'lionel@bluehorizon.com', '+234-800-555-0101', 'Lagos', 'Nigeria'),
+  (10, 3, 'VitaRetail Labs', 'Sofia', 'Nwosu', 'sofia@vitaretail.com', '+234-800-555-0102', 'Abuja', 'Nigeria'),
   (NULL, 4, 'Northlight Offices', 'Clara', 'Bennett', 'clara@northlightoffices.com', '+44-20-5555-0110', 'London', 'United Kingdom'),
   (NULL, 2, 'Urban Cart Market', 'Samuel', 'Okeke', 'samuel@urbancart.market', '+254-700-555-0111', 'Nairobi', 'Kenya');
 
@@ -239,17 +225,11 @@ INSERT INTO orders (
   payment_method,
   shipping_method,
   subtotal_amount,
-  seller_discount_amount,
-  tier_discount_amount,
-  promo_discount_amount,
   discount_amount,
   shipping_amount,
   tax_amount,
   total_amount,
   base_subtotal_amount,
-  base_seller_discount_amount,
-  base_tier_discount_amount,
-  base_promo_discount_amount,
   base_discount_amount,
   base_shipping_amount,
   base_tax_amount,
@@ -261,12 +241,12 @@ INSERT INTO orders (
   placed_at,
   delivery_eta
 ) VALUES
-  (2, 'RC-1001', 'USD', 'USD', 1.000000, 'PROCESSING', 'card', 'priority', 1466.00, 218.04, 0.00, 0.00, 218.04, 35.00, 87.36, 1370.32, 1466.00, 218.04, 0.00, 0.00, 218.04, 35.00, 87.36, 1370.32, NULL, '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', 'Priority delivery for office rollout.', '2026-03-08T08:00:00Z', '2026-03-12'),
-  (1, 'RC-1002', 'USD', 'USD', 1.000000, 'SHIPPED', 'bank_transfer', 'freight', 1499.00, 120.00, 0.00, 0.00, 120.00, 55.00, 96.53, 1530.53, 1499.00, 120.00, 0.00, 0.00, 120.00, 55.00, 96.53, 1530.53, NULL, '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', 'Freight coordination required on arrival.', '2026-03-07T14:20:00Z', '2026-03-11'),
-  (3, 'RC-1003', 'USD', 'USD', 1.000000, 'DELIVERED', 'card', 'standard', 498.00, 60.00, 0.00, 0.00, 60.00, 18.00, 30.66, 486.66, 498.00, 60.00, 0.00, 0.00, 60.00, 18.00, 30.66, 486.66, NULL, '{"recipientName":"Clara Bennett","line1":"22 Southbank Lane","city":"London","country":"United Kingdom"}', '{"recipientName":"Clara Bennett","line1":"22 Southbank Lane","city":"London","country":"United Kingdom"}', 'Delivery completed to studio floor.', '2026-03-06T09:10:00Z', '2026-03-09'),
-  (4, 'RC-1004', 'USD', 'USD', 1.000000, 'PENDING', 'card', 'priority', 1595.00, 233.52, 0.00, 0.00, 233.52, 40.00, 95.30, 1496.78, 1595.00, 233.52, 0.00, 0.00, 233.52, 40.00, 95.30, 1496.78, NULL, '{"recipientName":"Samuel Okeke","line1":"9 Parklands Road","city":"Nairobi","country":"Kenya"}', '{"recipientName":"Samuel Okeke","line1":"9 Parklands Road","city":"Nairobi","country":"Kenya"}', 'Awaiting payment confirmation.', '2026-03-05T16:45:00Z', '2026-03-13'),
-  (2, 'RC-1005', 'USD', 'USD', 1.000000, 'PROCESSING', 'card', 'standard', 249.00, 0.00, 0.00, 0.00, 0.00, 12.00, 17.43, 278.43, 249.00, 0.00, 0.00, 0.00, 0.00, 12.00, 17.43, 278.43, NULL, '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', 'Route through standard parcel line.', '2026-03-04T11:35:00Z', '2026-03-08'),
-  (1, 'RC-1006', 'USD', 'USD', 1.000000, 'PAID', 'wallet', 'standard', 258.00, 30.96, 0.00, 22.70, 53.66, 15.00, 14.30, 233.64, 258.00, 30.96, 0.00, 22.70, 53.66, 15.00, 14.30, 233.64, 'WELCOME10', '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', 'Marketing test order with promo code applied.', '2026-03-03T13:05:00Z', '2026-03-07');
+  (2, 'RC-1001', 'USD', 'USD', 1.000000, 'PROCESSING', 'card', 'priority', 1466.00, 218.04, 35.00, 87.36, 1370.32, 1466.00, 218.04, 35.00, 87.36, 1370.32, NULL, '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', 'Priority delivery for office rollout.', '2026-03-08T08:00:00Z', '2026-03-12'),
+  (1, 'RC-1002', 'USD', 'USD', 1.000000, 'SHIPPED', 'bank_transfer', 'freight', 1499.00, 120.00, 55.00, 96.53, 1530.53, 1499.00, 120.00, 55.00, 96.53, 1530.53, NULL, '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', 'Freight coordination required on arrival.', '2026-03-07T14:20:00Z', '2026-03-11'),
+  (3, 'RC-1003', 'USD', 'USD', 1.000000, 'DELIVERED', 'card', 'standard', 498.00, 60.00, 18.00, 30.66, 486.66, 498.00, 60.00, 18.00, 30.66, 486.66, NULL, '{"recipientName":"Clara Bennett","line1":"22 Southbank Lane","city":"London","country":"United Kingdom"}', '{"recipientName":"Clara Bennett","line1":"22 Southbank Lane","city":"London","country":"United Kingdom"}', 'Delivery completed to studio floor.', '2026-03-06T09:10:00Z', '2026-03-09'),
+  (4, 'RC-1004', 'USD', 'USD', 1.000000, 'PENDING', 'card', 'priority', 1595.00, 233.52, 40.00, 95.30, 1496.78, 1595.00, 233.52, 40.00, 95.30, 1496.78, NULL, '{"recipientName":"Samuel Okeke","line1":"9 Parklands Road","city":"Nairobi","country":"Kenya"}', '{"recipientName":"Samuel Okeke","line1":"9 Parklands Road","city":"Nairobi","country":"Kenya"}', 'Awaiting payment confirmation.', '2026-03-05T16:45:00Z', '2026-03-13'),
+  (2, 'RC-1005', 'USD', 'USD', 1.000000, 'PROCESSING', 'card', 'standard', 249.00, 0.00, 12.00, 17.43, 278.43, 249.00, 0.00, 12.00, 17.43, 278.43, NULL, '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', '{"recipientName":"Sofia Nwosu","line1":"4 Independence Avenue","city":"Abuja","country":"Nigeria"}', 'Route through standard parcel line.', '2026-03-04T11:35:00Z', '2026-03-08'),
+  (1, 'RC-1006', 'USD', 'USD', 1.000000, 'PAID', 'wallet', 'standard', 258.00, 53.66, 15.00, 14.30, 233.64, 258.00, 53.66, 15.00, 14.30, 233.64, 'WELCOME10', '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', '{"recipientName":"Lionel Grant","line1":"17 Admiralty Way","city":"Lagos","country":"Nigeria"}', 'Marketing test order with promo code applied.', '2026-03-03T13:05:00Z', '2026-03-07');
 
 INSERT INTO order_items (
   order_id,
@@ -393,7 +373,7 @@ INSERT INTO admin_activity_logs (
   ),
   (
     2,
-    'operations_manager',
+    'inventory_manager',
     'warehouse.updated',
     'warehouse',
     '1',
@@ -402,18 +382,18 @@ INSERT INTO admin_activity_logs (
     '2026-03-08T07:10:00Z'
   ),
   (
-    3,
-    'merchandising_manager',
+    7,
+    'catalog_manager',
     'product.created',
     'product',
     '6',
     'Published Rover Fold E-Scooter to the managed catalog.',
-    '{"sku":"RC-SCO-006","categoryId":4,"sellerProfileId":2}'::jsonb,
+    '{"sku":"RC-SCO-006","categoryId":4}'::jsonb,
     '2026-03-08T07:35:00Z'
   ),
   (
-    2,
-    'operations_manager',
+    8,
+    'shipping_coordinator',
     'shipment.status.updated',
     'shipment',
     '1',

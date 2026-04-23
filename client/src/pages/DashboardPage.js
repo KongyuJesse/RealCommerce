@@ -5,6 +5,61 @@ import ProductCard from '../components/ProductCard';
 import StatusPill from '../components/StatusPill';
 import { formatDate, money, roleLabel, statusLabel } from '../lib/format';
 import AccessPage from './AccessPage';
+import { apiRequest } from '../lib/api';
+
+const downloadOrderReceipt = async (orderNumber, onNavigate) => {
+  try {
+    const order = await apiRequest(`/api/orders/${orderNumber}`);
+    const lines = [];
+    const pad   = (label, value, width = 40) => `${label.padEnd(width - String(value).length)}${value}`;
+    const hr    = '─'.repeat(56);
+    lines.push('REALCOMMERCE');
+    lines.push('Official Order Receipt');
+    lines.push(hr);
+    lines.push(pad('Order Number:', order.order_number));
+    lines.push(pad('Order Date:', new Date(order.placed_at).toLocaleString()));
+    lines.push(pad('Order Status:', order.order_status));
+    lines.push(pad('Payment Method:', order.payment_method || 'N/A'));
+    lines.push(pad('Shipping Method:', order.shipping_method || 'Standard'));
+    if (order.delivery_eta) lines.push(pad('Delivery ETA:', new Date(order.delivery_eta).toLocaleDateString()));
+    lines.push(hr);
+    if (order.shipping_address) {
+      const addr = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
+      lines.push('SHIP TO');
+      if (addr.recipientName) lines.push(`  ${addr.recipientName}`);
+      if (addr.line1)         lines.push(`  ${addr.line1}`);
+      if (addr.city)          lines.push(`  ${addr.city}${addr.country ? ', ' + addr.country : ''}`);
+      lines.push(hr);
+    }
+    lines.push('ITEMS');
+    (order.items || []).forEach((item) => {
+      lines.push(`  ${item.name}`);
+      lines.push(`    Qty: ${item.quantity}  ×  ${item.unit_price} ${order.currency_code}  =  ${item.line_total} ${order.currency_code}`);
+    });
+    lines.push(hr);
+    lines.push('SUMMARY');
+    lines.push(pad('  Subtotal:', `${order.subtotal_amount} ${order.currency_code}`));
+    if (Number(order.discount_amount || 0) > 0) lines.push(pad('  Discounts:', `-${order.discount_amount} ${order.currency_code}`));
+    lines.push(pad('  Shipping:', `${order.shipping_amount} ${order.currency_code}`));
+    lines.push(pad('  Tax:', `${order.tax_amount} ${order.currency_code}`));
+    lines.push(pad('  ORDER TOTAL:', `${order.total_amount} ${order.currency_code}`));
+    lines.push(hr);
+    if (order.shipment?.tracking_number) lines.push(pad('Tracking Number:', order.shipment.tracking_number));
+    lines.push(hr);
+    lines.push('Thank you for shopping with RealCommerce.');
+    lines.push('support@realcommerce.com');
+    lines.push(`Generated: ${new Date().toLocaleString()}`);
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `receipt-${order.order_number}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Could not download receipt. Please try again.');
+  }
+};
 
 const titleize = (value = '') =>
   String(value || '')
@@ -12,25 +67,16 @@ const titleize = (value = '') =>
     .replace(/\b\w/g, (match) => match.toUpperCase());
 
 const getDefaultTab = (session) => {
-  const capabilities = session?.capabilities || {};
-
-  if (session?.roleName === 'customer') {
-    return 'overview';
-  }
-
-  if (capabilities.canManageOperations) {
-    return 'operations';
-  }
-
-  if (capabilities.canManageCatalog) {
-    return 'catalog';
-  }
-
-  if (capabilities.canManagePeople) {
-    return 'people';
-  }
-
-  return 'command';
+  if (session?.roleName === 'customer') return 'overview';
+  if (session?.roleName === 'admin') return 'command';
+  if (session?.roleName === 'inventory_manager') return 'warehouses';
+  if (session?.roleName === 'order_manager') return 'operations';
+  if (session?.roleName === 'shipping_coordinator') return 'operations';
+  if (session?.roleName === 'catalog_manager') return 'catalog';
+  if (session?.roleName === 'marketing_manager') return 'catalog';
+  if (session?.roleName === 'finance_manager') return 'rates';
+  if (session?.roleName === 'customer_support') return 'activity';
+  return 'overview';
 };
 
 const buildTabs = (session) => {
@@ -104,8 +150,7 @@ const DashboardPage = (props) => {
     updateReorderRequestStatus,
     warehouseForm,
     setWarehouseForm,
-    categories,
-    accessPageProps,
+    deleteAddress,
   } = props;
 
   const defaultTab = getDefaultTab(session);
@@ -163,7 +208,7 @@ const DashboardPage = (props) => {
   }, [activeTab, defaultTab, tabs]);
 
   if (!session) {
-    return <AccessPage {...accessPageProps} />;
+    return <AccessPage authForm={{ mode: 'login', fullName: '', email: '', password: '' }} setAuthForm={() => {}} submitAuth={() => {}} isBusy={false} onNavigate={onNavigate} accessView="login" />;
   }
 
   const renderOrderTable = (orders = []) => (
@@ -175,19 +220,29 @@ const DashboardPage = (props) => {
             <th>Date</th>
             <th>Status</th>
             <th>Total</th>
+            <th>Receipt</th>
           </tr>
         </thead>
         <tbody>
           {orders.length > 0 ? orders.map((order) => (
-            <tr key={order.order_number} onClick={() => onNavigate('order', order.order_number)}>
-              <td style={{ color: 'var(--link)', fontWeight: 700 }}>{order.order_number}</td>
+            <tr key={order.order_number}>
+              <td style={{ color: 'var(--link)', fontWeight: 700, cursor: 'pointer' }} onClick={() => onNavigate('order', order.order_number)}>{order.order_number}</td>
               <td>{formatDate(order.placed_at)}</td>
               <td><StatusPill value={order.order_status} /></td>
               <td style={{ fontWeight: 700 }}>{money(order.total_amount || order.seller_gross || 0, order.currency_code)}</td>
+              <td>
+                <button
+                  className="ghost-btn ghost-btn-small"
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); downloadOrderReceipt(order.order_number, onNavigate); }}
+                >
+                  Download
+                </button>
+              </td>
             </tr>
           )) : (
             <tr>
-              <td colSpan={4} className="muted-copy">No orders to show yet.</td>
+              <td colSpan={5} className="muted-copy">No orders to show yet.</td>
             </tr>
           )}
         </tbody>
@@ -345,19 +400,34 @@ const DashboardPage = (props) => {
                     <strong>{address.label}</strong>
                     <small>{address.line1}, {address.city}, {address.country}</small>
                   </span>
-                  <button
-                    className="ghost-btn ghost-btn-small"
-                    type="button"
-                    onClick={() => {
-                      setCheckoutForm((current) => ({
-                        ...current,
-                        shippingAddress: applyAddressToCheckout(address),
-                      }));
-                      onNavigate('checkout');
-                    }}
-                  >
-                    Checkout
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      className="ghost-btn ghost-btn-small"
+                      type="button"
+                      onClick={() => {
+                        setCheckoutForm((current) => ({
+                          ...current,
+                          shippingAddress: applyAddressToCheckout(address),
+                        }));
+                        onNavigate('checkout');
+                      }}
+                    >
+                      Checkout
+                    </button>
+                    {deleteAddress && (
+                      <button
+                        className="ghost-btn ghost-btn-small"
+                        type="button"
+                        style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                        onClick={() => {
+                          if (window.confirm('Delete this address?')) deleteAddress(address.id);
+                        }}
+                        aria-label={`Delete address ${address.label}`}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -626,40 +696,31 @@ const DashboardPage = (props) => {
                     onChange={(event) => setDiscountForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="Campaign name"
                   />
+                  <input
+                    value={discountForm.code}
+                    onChange={(event) => setDiscountForm((current) => ({ ...current, code: event.target.value }))}
+                    placeholder="Promo code (e.g. SAVE20)"
+                  />
                   <select
                     value={discountForm.discountType}
                     onChange={(event) => setDiscountForm((current) => ({ ...current, discountType: event.target.value }))}
                   >
                     <option value="PERCENT">Percent off</option>
                     <option value="FIXED">Fixed amount off</option>
+                    <option value="SHIPPING">Shipping discount</option>
                   </select>
                   <input
                     value={discountForm.discountValue}
                     onChange={(event) => setDiscountForm((current) => ({ ...current, discountValue: event.target.value }))}
                     placeholder="Discount value"
                   />
-                  <select
-                    className="field-span-2"
-                    value={discountForm.appliesTo}
-                    onChange={(event) => setDiscountForm((current) => ({ ...current, appliesTo: event.target.value }))}
-                  >
-                    <option value="ALL_PRODUCTS">All products</option>
-                    <option value="CATEGORY">Category</option>
-                  </select>
-                  {discountForm.appliesTo === 'CATEGORY' ? (
-                    <select
-                      className="field-span-2"
-                      value={discountForm.categoryId}
-                      onChange={(event) => setDiscountForm((current) => ({ ...current, categoryId: event.target.value }))}
-                    >
-                      <option value="">Select category</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
-                  ) : null}
+                  <input
+                    value={discountForm.minimumOrderAmount}
+                    onChange={(event) => setDiscountForm((current) => ({ ...current, minimumOrderAmount: event.target.value }))}
+                    placeholder="Min order amount"
+                  />
                 </div>
-                <button className="accent-btn" type="submit">Create campaign</button>
+                <button className="accent-btn" type="submit">Create promotion</button>
               </form>
 
               <form onSubmit={submitPlatformSettings} className="stack-form">
@@ -855,8 +916,13 @@ const DashboardPage = (props) => {
                   >
                     <option value="customer">Customer</option>
                     <option value="admin">Admin</option>
-                    <option value="operations_manager">Operations manager</option>
-                    <option value="merchandising_manager">Merchandising manager</option>
+                    <option value="inventory_manager">Inventory Manager</option>
+                    <option value="order_manager">Order Manager</option>
+                    <option value="customer_support">Customer Support</option>
+                    <option value="marketing_manager">Marketing Manager</option>
+                    <option value="finance_manager">Finance Manager</option>
+                    <option value="catalog_manager">Catalog Manager</option>
+                    <option value="shipping_coordinator">Shipping Coordinator</option>
                   </select>
                   <input
                     value={managedUserForm.phone}
@@ -1020,7 +1086,7 @@ const DashboardPage = (props) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {rateRows.slice(0, 12).map((rate) => (
+                    {rateRows.map((rate) => (
                       <tr key={`${rate.from_currency_code}-${rate.to_currency_code}`}>
                         <td style={{ fontFamily: 'monospace' }}>{rate.from_currency_code} to {rate.to_currency_code}</td>
                         <td style={{ fontWeight: 700 }}>{Number(rate.rate || 0).toFixed(6)}</td>

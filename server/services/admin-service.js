@@ -1,40 +1,13 @@
 const { query, withTransaction } = require('../db');
 const { assert, asNumber, isEmail, isNonEmptyString, normalizeEmail } = require('../utils/validation');
+const { normalizeText, normalizeNullableText, normalizeBoolean, mapMoneyRow } = require('../utils/format');
 const { recordAdminActivity } = require('./activity-log-service');
 const { assertStrongPassword, hashPassword, splitFullName } = require('./auth-service');
 
-const MANAGED_ROLE_NAMES = ['admin', 'operations_manager', 'merchandising_manager', 'customer'];
+const MANAGED_ROLE_NAMES = ['admin', 'inventory_manager', 'order_manager', 'customer_support', 'marketing_manager', 'finance_manager', 'catalog_manager', 'shipping_coordinator', 'customer'];
 const REORDER_STATUSES = ['OPEN', 'ORDERED', 'RECEIVED', 'CANCELLED'];
 
-const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
-
-const normalizeNullableText = (value) => {
-  const normalized = normalizeText(value);
-  return normalized || null;
-};
-
 const normalizeRoleName = (value) => normalizeText(value).toLowerCase();
-
-const mapMoneyRow = (row, fields) =>
-  fields.reduce(
-    (accumulator, field) => ({
-      ...accumulator,
-      [field]: Number(Number(row[field] || 0).toFixed(2)),
-    }),
-    row
-  );
-
-const normalizeBoolean = (value, fallback = false) => {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
-};
 
 const getManagedUserById = async (userId, client = { query }) => {
   const result = await client.query(

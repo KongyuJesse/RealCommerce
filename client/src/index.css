@@ -7,7 +7,7 @@
 /* ── Design Tokens ── */
 :root {
   /* Canvas */
-  --canvas:        #eaf0f6;
+  --canvas:        #e3e6e6;
   --canvas-soft:   #f5f8fb;
   --canvas-deep:   #d1dde9;
 
@@ -34,7 +34,7 @@
 
   /* Semantic */
   --link:        #007185;
-  --link-hover:  #C7511F;
+  --link-hover:  #c40000;
   --success:     #007600;
   --success-bg:  #d4edda;
   --warning:     #856404;
@@ -174,6 +174,11 @@ textarea { resize: vertical; min-height: 80px; }
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes premium-3d-fade {
+  0% { opacity: 0.3; transform: perspective(1000px) rotateY(15deg) scale(0.92); }
+  100% { opacity: 1; transform: perspective(1000px) rotateY(0deg) scale(1); }
 }
 
 /* ── Reduced Motion ── */

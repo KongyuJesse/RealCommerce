@@ -1,13 +1,5 @@
 const { query } = require('../db');
-
-const mapMoneyRow = (row, fields) =>
-  fields.reduce(
-    (accumulator, field) => ({
-      ...accumulator,
-      [field]: Number(Number(row[field] || 0).toFixed(2)),
-    }),
-    row
-  );
+const { mapMoneyRow } = require('../utils/format');
 
 const mapDecimalRow = (row, fields, precision = 6) =>
   fields.reduce(
