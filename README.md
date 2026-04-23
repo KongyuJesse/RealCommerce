@@ -42,6 +42,8 @@ RealCommerce is a production-oriented single-seller commerce platform with a Rea
 6. Start both services:
    `npm run dev`
 
+On a brand-new production database, the API now bootstraps the base schema and seed data automatically on first startup before applying incremental upgrades.
+
 Local defaults:
 
 - Frontend: `http://localhost:3000`
@@ -105,6 +107,8 @@ Optional but commonly needed:
 - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` if you plan to run `npm run seed:admin`
 
 The Blueprint wires the static site and API together from each service's Render external URL. It also creates a generated `REALCOMMERCE_SESSION_SECRET` fallback for existing Render services where `SESSION_SECRET` is blank or missing.
+
+For a fresh empty Postgres database, the API boot process now initializes the base schema and demo/reference seed data automatically before running startup migrations. Existing databases still use the normal incremental upgrade path.
 
 ### Vercel + Render
 
