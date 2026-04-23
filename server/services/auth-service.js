@@ -4,14 +4,6 @@ const { query, withTransaction } = require('../db');
 const { assert, isEmail, isNonEmptyString, normalizeEmail } = require('../utils/validation');
 const { sendWelcomeEmail, sendPasswordResetEmail } = require('./email-service');
 
-const slugify = (value) =>
-  String(value || '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120);
-
 const splitFullName = (value) => {
   const trimmedValue = String(value || '').trim().replace(/\s+/g, ' ');
   if (!trimmedValue) {
@@ -34,21 +26,6 @@ const assertStrongPassword = (password) => {
       /[^A-Za-z0-9]/.test(password),
     'Password must include uppercase, lowercase, a number, and a special character.'
   );
-};
-
-const generateUniqueSellerSlug = async (client, baseValue) => {
-  const baseSlug = slugify(baseValue) || `seller-${Date.now()}`;
-  let candidate = baseSlug;
-  let counter = 1;
-
-  while (true) {
-    const existing = await client.query('SELECT 1 FROM seller_profiles WHERE slug = $1 LIMIT 1', [candidate]);
-    if (existing.rowCount === 0) {
-      return candidate;
-    }
-    counter += 1;
-    candidate = `${baseSlug}-${counter}`;
-  }
 };
 
 const hashPassword = (password, salt = crypto.randomBytes(16).toString('hex')) =>

@@ -9,27 +9,7 @@ const schemaUpgradeStatements = [
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `,
-  `
-    CREATE TABLE IF NOT EXISTS seller_discount_campaigns (
-      id SERIAL PRIMARY KEY,
-      seller_profile_id INTEGER NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE,
-      name VARCHAR(120) NOT NULL,
-      code VARCHAR(40),
-      description TEXT,
-      discount_type VARCHAR(20) NOT NULL
-        CHECK (discount_type IN ('PERCENT', 'FIXED')),
-      discount_value NUMERIC(12, 2) NOT NULL CHECK (discount_value >= 0),
-      applies_to VARCHAR(20) NOT NULL DEFAULT 'ALL_PRODUCTS'
-        CHECK (applies_to IN ('ALL_PRODUCTS', 'CATEGORY', 'PRODUCT')),
-      category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
-      minimum_quantity INTEGER NOT NULL DEFAULT 1 CHECK (minimum_quantity > 0),
-      starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      ends_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '30 days',
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `,
+
   `
     CREATE TABLE IF NOT EXISTS external_service_syncs (
       id SERIAL PRIMARY KEY,
@@ -717,7 +697,7 @@ const schemaUpgradeStatements = [
     FROM customers
   `,
   'REFRESH MATERIALIZED VIEW weekly_category_sales_snapshot',
-  'CREATE INDEX IF NOT EXISTS idx_seller_discount_campaigns_seller_id ON seller_discount_campaigns(seller_profile_id, is_active, starts_at, ends_at)',
+
   'CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items(product_id)',
   'CREATE INDEX IF NOT EXISTS idx_wishlists_customer ON wishlists(customer_id, added_at DESC)',
   'CREATE INDEX IF NOT EXISTS idx_orders_placed_at ON orders(placed_at DESC)',
