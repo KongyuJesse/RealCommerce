@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'rc_preferred_currency';
-const DEFAULT_CURRENCY = 'USD';
-const DEFAULT_COUNTRY  = 'US';
+const DEFAULT_CURRENCY = 'XAF';
+const DEFAULT_COUNTRY  = 'CM';
 const EMPTY_LIST = [];
 
 const CurrencyContext = createContext({

@@ -19,7 +19,8 @@ INSERT INTO currencies (code, name, symbol, is_base) VALUES
   ('USD', 'United States Dollar', '$', TRUE),
   ('EUR', 'Euro', 'EUR', FALSE),
   ('GBP', 'British Pound Sterling', 'GBP', FALSE),
-  ('NGN', 'Nigerian Naira', 'NGN', FALSE);
+  ('NGN', 'Nigerian Naira', 'NGN', FALSE),
+  ('XAF', 'Central African CFA Franc', 'FCFA', FALSE);
 
 INSERT INTO payment_methods_catalog (id, label, provider, sort_order) VALUES
   ('card', 'Card', 'Stripe', 1),
@@ -53,7 +54,9 @@ INSERT INTO exchange_rates (base_currency_code, target_currency_code, rate, effe
   ('USD', 'GBP', 0.765000, '2026-02-01T07:30:00Z'),
   ('USD', 'GBP', 0.780000, '2026-03-08T07:30:00Z'),
   ('USD', 'NGN', 1518.000000, '2026-02-01T07:30:00Z'),
-  ('USD', 'NGN', 1542.500000, '2026-03-08T07:30:00Z');
+  ('USD', 'NGN', 1542.500000, '2026-03-08T07:30:00Z'),
+  ('USD', 'XAF', 600.000000, '2026-02-01T07:30:00Z'),
+  ('USD', 'XAF', 608.500000, '2026-03-08T07:30:00Z');
 
 INSERT INTO users (role_id, full_name, email, password_hash, last_login_at) VALUES
   (1, 'Jesse Kongyu', 'jesse@realcommerce.com', 'scrypt$0db45cab019120cb60ed7361a35579d0$5d6f9a7bd606fc0fd1dd40f09ab5cc08a08025c78a9d3980ee24ca71f6cf26d128d2e657b1028f2de8d67caf9c4654831e2fde311509a0b4cd99fb0fb91844b9', '2026-03-08T08:10:00Z'),
@@ -106,12 +109,12 @@ INSERT INTO product_images (
   is_primary,
   asset_status
 ) VALUES
-  (1, 'external', 'https://images.pexels.com/photos/31726561/pexels-photo-31726561.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Atlas Standing Desk in a clean premium workspace.', 0, TRUE, 'READY'),
-  (2, 'external', 'https://images.pexels.com/photos/31726674/pexels-photo-31726674.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Halo Task Chair next to a modern office desk.', 0, TRUE, 'READY'),
-  (3, 'external', 'https://images.pexels.com/photos/19844043/pexels-photo-19844043.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Pulse Smart Lamp styled on a warm-toned side table.', 0, TRUE, 'READY'),
-  (4, 'external', 'https://images.pexels.com/photos/3394666/pexels-photo-3394666.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Drift Noise-Canceling Buds in a premium product composition.', 0, TRUE, 'READY'),
-  (5, 'external', 'https://images.pexels.com/photos/5327474/pexels-photo-5327474.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Tempo Recovery Massager used during a fitness recovery session.', 0, TRUE, 'READY'),
-  (6, 'external', 'https://images.pexels.com/photos/15818617/pexels-photo-15818617.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Rover Fold E-Scooter in a city mobility environment.', 0, TRUE, 'READY');
+  (1, 'external', 'https://images.pexels.com/photos/7534555/pexels-photo-7534555.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Atlas Standing Desk — electric sit-stand desk in a modern workspace.', 0, TRUE, 'READY'),
+  (2, 'external', 'https://images.pexels.com/photos/1957478/pexels-photo-1957478.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Halo Task Chair — breathable ergonomic office chair.', 0, TRUE, 'READY'),
+  (3, 'external', 'https://images.pexels.com/photos/1112598/pexels-photo-1112598.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Pulse Smart Lamp — adaptive smart lamp on a side table.', 0, TRUE, 'READY'),
+  (4, 'external', 'https://images.pexels.com/photos/3780681/pexels-photo-3780681.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Drift Noise-Canceling Buds — wireless earbuds product shot.', 0, TRUE, 'READY'),
+  (5, 'external', 'https://images.pexels.com/photos/3823488/pexels-photo-3823488.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Tempo Recovery Massager — handheld percussion massager.', 0, TRUE, 'READY'),
+  (6, 'external', 'https://images.pexels.com/photos/2519374/pexels-photo-2519374.jpeg?auto=compress&cs=tinysrgb&w=1200&h=1200&dpr=1', 'image/jpeg', 'Rover Fold E-Scooter — foldable electric scooter on city street.', 0, TRUE, 'READY');
 
 INSERT INTO product_attributes (name, display_name, value_type) VALUES
   ('finish', 'Finish', 'TEXT'),

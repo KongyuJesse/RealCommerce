@@ -11,6 +11,7 @@ const CURRENCY_LOCALE = {
   EUR: 'de-DE',
   GBP: 'en-GB',
   NGN: 'en-NG',
+  XAF: 'fr-CM',
   GHS: 'en-GH',
   KES: 'en-KE',
   ZAR: 'en-ZA',

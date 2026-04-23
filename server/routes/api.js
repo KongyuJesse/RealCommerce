@@ -171,7 +171,7 @@ const createApiRouter = ({ loadSessionUser, clearSessionCookieHeader }) => {
   }));
 
   router.get('/geo', wrap(async (request, response) => {
-    response.json(request.geo || { countryCode: 'US', currencyCode: 'USD', source: 'default' });
+    response.json(request.geo || { countryCode: 'CM', currencyCode: 'XAF', source: 'default' });
   }));
 
   router.get('/homepage', wrap(async (_request, response) => {

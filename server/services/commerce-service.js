@@ -1433,7 +1433,7 @@ const buildBootstrap = async (currentUser, geo = null) => {
     site: {
       brand: 'RealCommerce',
       tagline: 'Production ecommerce infrastructure for discovery, checkout, fulfilment, and operations.',
-      location: 'Lagos',
+      location: 'Douala',
       spotlightLabel: 'Inventory-aware checkout, coordinated fulfillment, and live shipping updates in one flow.',
       navigationLinks: [
         { label: 'Home', page: 'home' },
@@ -1508,7 +1508,7 @@ const buildBootstrap = async (currentUser, geo = null) => {
         }
       : null,
     geo: {
-      countryCode: geo?.countryCode || 'US',
+      countryCode: geo?.countryCode || 'CM',
       currencyCode: preferredCurrencyCode,
       source: geo?.source || 'default',
     },
