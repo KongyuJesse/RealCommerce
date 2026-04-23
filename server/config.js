@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const { normalizeOrigin } = require('./utils/origin');
 
 dotenv.config({ quiet: true });
 
@@ -29,7 +30,7 @@ const parseNumber = (value, fallback) => {
 const parseOrigins = (value) =>
   String(value || '')
     .split(',')
-    .map((entry) => entry.trim())
+    .map((entry) => normalizeOrigin(entry))
     .filter(Boolean);
 
 const parseTrustProxy = (value, fallback) => {
@@ -69,7 +70,7 @@ const config = {
 
   // CORS
   clientOrigins: parseOrigins(getFirstNonEmptyEnv('CLIENT_ORIGIN') || 'http://localhost:3000'),
-  clientOriginRegex: process.env.CLIENT_ORIGIN_REGEX || '',
+  clientOriginRegex: String(process.env.CLIENT_ORIGIN_REGEX || '').trim(),
 
   // Database
   databaseUrl: process.env.DATABASE_URL || '',
