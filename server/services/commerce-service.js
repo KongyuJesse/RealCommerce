@@ -2891,12 +2891,6 @@ const cancelOrder = async ({ orderNumber, customerId }) => {
   });
 };
 
-const getSellerProfileBySlug = async (slug) => {
-  const result = await query('SELECT id FROM seller_profiles WHERE slug = $1 AND is_active = TRUE LIMIT 1', [slug]);
-  if (result.rowCount === 0) return null;
-  return getSellerProfile(result.rows[0].id);
-};
-
 const getCustomerOrders = async ({ customerId, limit = 20, offset = 0 }) => {
   const safeLimit  = Math.min(100, Math.max(1, Number(limit)  || 20));
   const safeOffset = Math.max(0, Number(offset) || 0);
